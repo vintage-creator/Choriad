@@ -10,7 +10,6 @@ export const metadata: Metadata = {
   title: "Choraid - Your Personal Assistant for Everyday Tasks",
   description:
     "Connect with verified service providers in Nigerian cities. Get help with grocery shopping, cleaning, errands, and more.",
-  generator: "v0.app",
 }
 
 export default function RootLayout({

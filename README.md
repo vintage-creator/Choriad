@@ -1,6 +1,6 @@
-# Choraid - Service Provider Platform
+# Choriad - Service Provider Platform
 
-Choraid is a comprehensive platform connecting busy individuals in Nigerian cities with verified service providers for everyday tasks and lifestyle support.
+Choriad is a comprehensive platform connecting busy individuals in Nigerian cities with verified service providers for everyday tasks and lifestyle support.
 
 ## Features
 

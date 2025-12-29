@@ -1,50 +1,88 @@
-import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Sparkles, Zap, Clock, CheckCircle } from "lucide-react"
+"use client";
+
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Sparkles, Zap, Clock, CheckCircle, MessageCircle } from "lucide-react";
+import { motion } from "framer-motion";
 
 export function AIAgentCard() {
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="mx-auto max-w-lg"
+    >
+      <Card className="relative overflow-visible border-primary/20 bg-gradient-to-br from-primary/6 via-primary/4 to-white shadow-lg hover:shadow-xl transition-all duration-300">
+        {/* decorative glow behind the card - non-interactive and behind content */}
+        <div className="pointer-events-none -z-10 absolute inset-0 rounded-xl bg-primary/10 blur-3xl" />
+
+        <CardHeader className="px-6 pt-6">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center shadow-md">
+                <Sparkles className="w-6 h-6 text-white" aria-hidden />
+              </div>
+            </div>
+
+            <div>
+              <CardTitle className="text-lg sm:text-xl font-semibold text-foreground">
+                Choriad AI — Your Oga
+              </CardTitle>
+              <CardDescription className="text-sm text-muted-foreground">
+                Let AI find and book the perfect provider for you
+              </CardDescription>
+            </div>
           </div>
+        </CardHeader>
+
+        <CardContent className="px-6 pb-6 pt-4 space-y-4">
+          <div className="grid gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Zap className="w-4 h-4 text-primary" aria-hidden />
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-foreground">Smart Matching</div>
+                <p className="text-muted-foreground mt-1">AI analyzes 20+ factors to find your ideal provider</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 text-primary" aria-hidden />
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-foreground">Time Saver</div>
+                <p className="text-muted-foreground mt-1">Complete booking in minutes, not hours</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <CheckCircle className="w-4 h-4 text-primary" aria-hidden />
+              </div>
+              <div className="text-sm">
+                <div className="font-medium text-foreground">Hassle-Free</div>
+                <p className="text-muted-foreground mt-1">AI handles scheduling, payments, and confirmations</p>
+              </div>
+            </div>
+          </div>
+
           <div>
-            <CardTitle className="text-xl">Try Our AI Agent</CardTitle>
-            <CardDescription>Let AI find and book workers for you automatically</CardDescription>
+            <Button
+              asChild
+              className="w-full rounded-xl bg-gradient-to-br from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 shadow-md h-12 text-base"
+            >
+              <Link href="/client/ai-agent" aria-label="Start conversation with Choriad AI — Your Oga" className="flex items-center justify-center gap-2">
+                <MessageCircle className="mr-1 h-4 w-4 text-white" />
+                <span>Start Conversation</span>
+              </Link>
+            </Button>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3">
-          <div className="flex items-start gap-2">
-            <Zap className="w-4 h-4 mt-1 text-primary shrink-0" />
-            <div className="text-sm">
-              <span className="font-medium">Instant Matching:</span> AI analyzes your needs and finds the best workers
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <Clock className="w-4 h-4 mt-1 text-primary shrink-0" />
-            <div className="text-sm">
-              <span className="font-medium">Save Time:</span> No more browsing profiles - just describe what you need
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <CheckCircle className="w-4 h-4 mt-1 text-primary shrink-0" />
-            <div className="text-sm">
-              <span className="font-medium">Auto-Booking:</span> AI handles the entire booking process for you
-            </div>
-          </div>
-        </div>
-        <Button asChild className="w-full" size="lg">
-          <Link href="/client/ai-agent">
-            <Sparkles className="mr-2 h-4 w-4" />
-            Chat with AI Agent
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  )
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
 }

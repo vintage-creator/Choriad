@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "../Logo";
 
 export function Footer() {
   const linkMap: Record<string, string> = {
@@ -11,13 +12,11 @@ export function Footer() {
     <footer className="border-t bg-gradient-to-b from-muted/50 to-muted/30">
       <div className="mx-auto max-w-7xl py-8 px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Logo Section */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center space-x-3 group">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="font-bold text-white text-lg">C</span>
-              </div>
-              <div className="font-bold text-2xl bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                Choriad
+              <div className="w-28 sm:w-36">
+                <Logo className="w-72 h-auto text-foreground" />
               </div>
             </Link>
             <p className="text-muted-foreground leading-relaxed max-w-xs">
@@ -26,6 +25,7 @@ export function Footer() {
             </p>
           </div>
 
+          {/* For Clients */}
           <div>
             <h3 className="font-semibold text-lg mb-4 text-foreground">
               For Clients
@@ -39,8 +39,8 @@ export function Footer() {
                         item === "Post a Task"
                           ? "/auth/sign-up"
                           : item === "Browse Services"
-                          ? "/features"
-                          : "#how-it-works"
+                          ? "/Earn"
+                          : "/earn"
                       }
                       className="text-muted-foreground hover:text-foreground transition-all duration-300 hover:translate-x-1 inline-block"
                     >
@@ -52,6 +52,7 @@ export function Footer() {
             </ul>
           </div>
 
+          {/* For Providers */}
           <div>
             <h3 className="font-semibold text-lg mb-4 text-foreground">
               For Providers
@@ -65,7 +66,11 @@ export function Footer() {
                 <li key={item}>
                   <Link
                     href={
-                      item === "Become a Provider" ? "/auth/sign-up" : "#trust"
+                      item === "Become a Provider"
+                        ? "/auth/sign-up"
+                        : item === "Earnings Calculator"
+                        ? "/earnings-calculator"
+                        : "#trust"
                     }
                     className="text-muted-foreground hover:text-foreground transition-all duration-300 hover:translate-x-1 inline-block"
                   >
@@ -76,6 +81,7 @@ export function Footer() {
             </ul>
           </div>
 
+          {/* Company */}
           <div>
             <h3 className="font-semibold text-lg mb-4 text-foreground">
               Company
@@ -85,7 +91,6 @@ export function Footer() {
                 (item) => (
                   <li key={item}>
                     <Link
-                      key={item}
                       href={linkMap[item] ?? "#"}
                       className="text-muted-foreground hover:text-foreground transition-all duration-300 hover:translate-x-1 inline-block"
                     >
@@ -101,7 +106,10 @@ export function Footer() {
         <div className="mt-12 pt-8 border-t text-center">
           <p className="text-muted-foreground">
             &copy; {new Date().getFullYear()} Choriad. All rights reserved.
-            Building better communities through trusted services.
+            <br />
+            <span className="text-sm text-black-200">
+              Building better communities through trusted services.
+            </span>
           </p>
         </div>
       </div>

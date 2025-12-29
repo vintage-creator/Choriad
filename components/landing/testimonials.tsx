@@ -223,27 +223,6 @@ export function TestimonialsSection() {
             ))}
           </div>
         </div>
-
-        {/* Stats Bar */}
-        <motion.div 
-          className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-16 max-w-2xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          viewport={{ once: true }}
-        >
-          {[
-            { number: "98%", label: "Satisfaction Rate" },
-            { number: "4.8/5", label: "Average Rating" },
-            { number: "2min", label: "Avg. Response Time" },
-            { number: "1000+", label: "Happy Users" }
-          ].map((stat, index) => (
-            <div key={stat.label} className="text-center">
-              <div className="text-2xl font-bold text-primary mb-2">{stat.number}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </div>
-          ))}
-        </motion.div>
       </div>
     </section>
   )

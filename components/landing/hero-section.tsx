@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, Play } from "lucide-react";
-import { motion } from "framer-motion";
+import { ArrowRight, Sparkles, Play, MapPin } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-// CountUp Component for animated numbers
-function CountUp({ end, suffix = "", duration = 2 }: { end: number; suffix?: string; duration?: number }) {
+function CountUp({
+  end,
+  suffix = "",
+  duration = 2,
+}: {
+  end: number;
+  suffix?: string;
+  duration?: number;
+}) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -28,146 +38,220 @@ function CountUp({ end, suffix = "", duration = 2 }: { end: number; suffix?: str
 
   return (
     <span>
-      {count}{suffix}
+      {count}
+      {suffix}
     </span>
   );
 }
 
 export function HeroSection() {
+  const router = useRouter();
   const [isVisible, setIsVisible] = useState(true);
+  const [currentCity, setCurrentCity] = useState(0);
+  const [showModal, setShowModal] = useState(false);
+
+  const cities = [
+    "Lagos",
+    "Abia",
+    "Imo",
+    "Abuja",
+    "Delta",
+    "Akwa Ibom",
+    "Rivers",
+    "Cross River",
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentCity((prev) => (prev + 1) % cities.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 100) {
-        setIsVisible(false);
-      } else {
-        setIsVisible(true);
-      }
+      setIsVisible(window.scrollY <= 100);
     };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToHowItWorks = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const element = document.getElementById('how-it-works');
-    if (element) {
-      const headerOffset = 100;
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+  const handleFindHelper = async () => {
+    const supabase = createClient();
 
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth"
-      });
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      // User is logged in → go to dashboard
+      router.push("/client/dashboard");
+    } else {
+      // Not logged in → sign up
+      router.push("/auth/sign-up");
     }
   };
 
+  const handleOpenDemoModal = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    setShowModal(true);
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeDemoModal = () => {
+    setShowModal(false);
+    document.body.style.overflow = "";
+  };
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape" && showModal) {
+        closeDemoModal();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showModal]);
+
+  // Demo conversation shown inside laptop mock
+  const demoMessages = [
+    { role: "assistant", text: "I found 3 verified plumbers near you. Shall I compare their rates?" },
+    { role: "user", text: "Yes — compare and book the cheapest for tomorrow afternoon." },
+    { role: "assistant", text: "Done. Booked Tunde Plumbing for ₦15,000 — ETA 2 PM. Want me to confirm?" },
+  ];
+
+  const messageVariants = {
+    hidden: { opacity: 0, y: 8, scale: 0.98 },
+    visible: (i: number) => ({ opacity: 1, y: 0, scale: 1, transition: { delay: i * 0.32, duration: 0.38 } }),
+  };
+
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-background via-blue-50 to-background pt-20 pb-16">
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-      <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl" />
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-background via-slate-50 to-background pt-16 pb-12 md:pt-24 md:pb-20">
+      {/* Soft decorative background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-8 w-28 h-28 bg-primary/10 rounded-full blur-3xl hidden sm:block" />
+        <div className="absolute bottom-36 right-8 w-36 h-36 bg-emerald-500/8 rounded-full blur-3xl hidden md:block" />
+        <div className="absolute -top-36 -right-36 w-72 h-72 rounded-full blur-3xl bg-primary/6" />
+        <div className="absolute -bottom-36 -left-36 w-72 h-72 rounded-full blur-3xl bg-emerald-50/6" />
       </div>
 
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
+      <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          {/* Left column: copy + CTAs */}
           <motion.div
-            className="max-w-2xl"
+            className="max-w-2xl mx-auto lg:mx-0"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
           >
             <motion.div
-              className="inline-flex mt-16 items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-8 border border-primary/20"
-              initial={{ opacity: 0, scale: 0.9 }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6 mt-4 md:mb-8 border border-primary/20"
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
+              transition={{ delay: 0.15 }}
             >
               <Sparkles className="h-4 w-4" />
-              <span>Powered by Agentic AI</span>
+              <span>Choriad — your local Agentic AI</span>
             </motion.div>
 
             <motion.h1
-              className="text-4xl font-bold tracking-tight sm:text-5xl text-balance mb-8 leading-tight"
+              className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4 leading-tight text-foreground"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
+              transition={{ delay: 0.25, duration: 0.7 }}
             >
-              Your Time,
-              <span className="bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+              Your Personal
+              <span className="bg-gradient-to-r from-primary to-emerald-600 bg-clip-text text-transparent">
                 {" "}
-                Reclaimed
+                Oga
               </span>
               <br />
-              By Trusted Help
+              for Everyday Tasks
             </motion.h1>
 
-            <motion.p
-              className="text-xl text-muted-foreground text-pretty mb-10 leading-relaxed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
+            <motion.div
+              className="flex items-center gap-3 mb-4 text-base md:text-lg text-muted-foreground"
+              initial={{ opacity: 0, x: -12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.45 }}
             >
-              Let our AI assistant find and book verified service providers for
-              your daily tasks. From groceries to home services—all handled
-              seamlessly while you focus on what matters.
+              <MapPin className="h-5 w-5 text-primary" />
+              <span>Now working in</span>
+              <motion.span
+                key={currentCity}
+                className="font-semibold text-primary"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45 }}
+              >
+                {" "}
+                {cities[currentCity]}
+              </motion.span>
+            </motion.div>
+
+            <motion.p
+              className="text-lg md:text-xl text-muted-foreground mb-8 md:mb-10 leading-relaxed"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.55 }}
+            >
+              Choriad goes out, finds trusted artisans, bargains for a fair
+              price, books the appointment and handles payment — you relax and
+              carry on with your day.
             </motion.p>
 
             <motion.div
-              className="flex flex-col sm:flex-row gap-4 mb-16"
-              initial={{ opacity: 0, y: 20 }}
+              className="flex flex-col sm:flex-row gap-4 mb-12 md:mb-16"
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.8 }}
+              transition={{ delay: 0.75 }}
             >
               <Button
                 size="lg"
-                asChild
-                className="text-base h-14 px-8 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 cursor-pointer"
+                onClick={handleFindHelper}
+                className="text-base h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 shadow-lg transition-all duration-300"
               >
-                <Link href="/auth/sign-up" className="flex items-center justify-center gap-2">
-                  Try AI Assistant Free
+                <span className="flex items-center justify-center gap-2">
+                  Find my helper
                   <ArrowRight className="h-5 w-5" />
-                </Link>
+                </span>
               </Button>
 
               <Button
                 size="lg"
                 variant="outline"
-                className="text-base h-14 px-8 border-2 bg-transparent hover:bg-accent/50 transition-all duration-300 cursor-pointer"
-                onClick={scrollToHowItWorks}
+                className="text-base h-12 sm:h-14 px-6 sm:px-8 border-2 border-primary/30 bg-transparent hover:bg-primary/5 transition-all duration-300"
+                onClick={handleOpenDemoModal}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-primary cursor-pointer">
                   <Play className="h-4 w-4" />
-                  See How It Works
+                  See Oga at work
                 </span>
               </Button>
             </motion.div>
 
             <motion.div
-              className="grid grid-cols-3 gap-4"
+              className="grid grid-cols-3 sm:grid-cols-3 gap-4 md:gap-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.9, duration: 0.8 }}
+              transition={{ delay: 1 }}
             >
               {[
-                { number: 200, suffix: "+", label: "Verified Providers" },
-                { number: 1500, suffix: "+", label: "Tasks Completed" },
-                { number: 4.8, suffix: "★", label: "Average Rating" },
+                { number: 500, suffix: "+", label: "Verified Artisans" },
+                { number: 2500, suffix: "+", label: "Jobs Done" },
+                { number: 4.9, suffix: "★", label: "Happy Rating" },
               ].map((stat, index) => (
-                <motion.div 
-                  key={stat.label} 
-                  className=""
-                  initial={{ opacity: 0, y: 20 }}
+                <motion.div
+                  key={stat.label}
+                  className="text-center p-3 sm:p-4 rounded-2xl bg-white/60 backdrop-blur-sm border border-primary/10"
+                  initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 1 + index * 0.2, duration: 0.6 }}
+                  transition={{ delay: 1.15 + index * 0.12 }}
                 >
-                  <div className="text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+                  <div className="text-lg sm:text-2xl font-bold text-primary">
                     <CountUp end={stat.number} suffix={stat.suffix} />
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">
+                  <div className="text-xs sm:text-sm text-muted-foreground mt-1">
                     {stat.label}
                   </div>
                 </motion.div>
@@ -175,89 +259,148 @@ export function HeroSection() {
             </motion.div>
           </motion.div>
 
+          {/* Right column: laptop mockup thumbnail */}
           <motion.div
-            className="relative"
-            initial={{ opacity: 0, x: 30 }}
+            className="relative mx-auto w-full max-w-xl"
+            initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            <div className="relative">
-              <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/50">
-                <div className="aspect-video sm:aspect-[4/3] relative overflow-hidden bg-slate-50">
-                  <video
-                    src="https://res.cloudinary.com/dcoxo8snb/video/upload/v1760223974/6005683_Delivery_Fast_Food_1280x720_uqr7kw.mp4"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="auto"
-                    aria-hidden="true"
-                  />
-                  {/* Removed pointer-events-none to ensure interactivity */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                  <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
-                    <div className="text-center space-y-3 max-w-xs sm:max-w-none">
-                      <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-primary to-blue-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
-                        <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
-                      </div>
-                      <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white">
-                        AI-Powered Matching
-                      </h3>
-                      <p className="text-xs sm:text-sm md:text-base text-white/90 leading-tight">
-                        Smart connections between clients and verified providers
-                      </p>
-                    </div>
+            <div
+              className="relative rounded-3xl overflow-hidden shadow-2xl border border-primary/20 bg-white cursor-pointer"
+              role="button"
+              aria-label="Open demo"
+              onClick={() => handleOpenDemoModal()}
+            >
+              {/* Laptop frame */}
+              <div className="aspect-[16/10] relative">
+                <Image src="/see-oga.png" alt="Laptop mockup" fill style={{ objectFit: "cover" }} />
+
+                {/* subtle overlay CTA */}
+                <div className="absolute bottom-4 left-4">
+                  <div className="inline-flex items-center gap-2 bg-white/90 text-primary px-3 py-2 rounded-full shadow pointer-events-none">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="text-sm font-medium">See Oga at work</span>
                   </div>
                 </div>
               </div>
-
-              {/* Floating Elements */}
-              <div className="absolute -top-6 -left-6 w-32 h-32 bg-primary/10 rounded-2xl blur-xl animate-pulse hidden sm:block" />
-              <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-blue-500/10 rounded-2xl blur-xl animate-pulse delay-1000 hidden sm:block" />
             </div>
+
+            <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/10 rounded-2xl blur-xl hidden sm:block" />
+            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-emerald-500/10 rounded-2xl blur-xl hidden sm:block" />
           </motion.div>
         </div>
       </div>
 
-      {/* Scroll Down Indicator */}
-      <motion.div
-        className={`absolute bottom-8 left-1/2 transform -translate-x-1/2 ${
-          isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        } transition-opacity duration-500`}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: isVisible ? 1 : 0, y: isVisible ? 0 : 20 }}
-        transition={{ delay: 1.5, duration: 0.5 }}
-      >
-        <div className="flex flex-col items-center gap-2">
-          <span className="text-xs text-muted-foreground font-medium tracking-wide">
-            Scroll to explore
-          </span>
+      <AnimatePresence>
+        {showModal && (
           <motion.div
-            animate={{ 
-              y: [0, 8, 0]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="w-6 h-10 border-2 border-primary/50 rounded-full flex justify-center p-1"
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            onClick={closeDemoModal}
           >
+            {/* backdrop */}
             <motion.div
-              animate={{ 
-                y: [0, 12, 0]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-              className="w-1 h-2 bg-primary/70 rounded-full"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
+
+            {/* modal content */}
+            <motion.div
+              className="relative w-full max-w-5xl rounded-2xl overflow-hidden shadow-2xl"
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* laptop frame */}
+              <div className="relative aspect-[16/10] bg-gray-100">
+                <Image src="/watch-oga.jpg" alt="Laptop mockup" fill style={{ objectFit: "cover" }} />
+
+                {/* screen area container (positioned inside laptop frame) */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-[78%] h-[74%] bg-white/95 rounded-xl shadow-inner p-4 flex flex-col">
+                    {/* header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center text-white">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">Choriad AI</div>
+                          <div className="text-xs text-muted-foreground">Agentic assistant</div>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">Conversation demo</div>
+                    </div>
+
+                    {/* messages area */}
+                    <div className="flex-1 overflow-auto py-2 space-y-3" aria-live="polite">
+                      {demoMessages.map((m, i) => (
+                        <motion.div
+                          key={i}
+                          custom={i}
+                          initial="hidden"
+                          animate="visible"
+                          variants={messageVariants}
+                          className={`max-w-[85%] px-3 py-2 rounded-lg shadow-sm ${
+                            m.role === "assistant"
+                              ? "self-start bg-white text-foreground"
+                              : "self-end bg-primary/90 text-white"
+                          }`}
+                          style={{ alignSelf: m.role === "assistant" ? "flex-start" : "flex-end" }}
+                        >
+                          <div className="text-sm leading-snug">{m.text}</div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* booking card (appears after messages) */}
+                    <motion.div
+                      className="mt-3 bg-emerald-50 border border-emerald-100 rounded-lg p-3 shadow-sm"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: demoMessages.length * 0.32 + 0.2 }}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-semibold">Tunde Plumbing</div>
+                          <div className="text-xs text-muted-foreground mt-1">Booked — ₦15,000 • Tomorrow, 2 PM</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-emerald-700">Confirmed</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex gap-3">
+                        <Button size="sm" className="px-3 py-1">View booking</Button>
+                        <Button size="sm" variant="outline" className="px-3 py-1">Message provider</Button>
+                      </div>
+                    </motion.div>
+                  </div>
+                </div>
+              </div>
+
+              {/* close */}
+              <div className="absolute top-3 right-3">
+                <button
+                  className="rounded-full bg-white/90 p-2 shadow hover:bg-white cursor-pointer"
+                  onClick={closeDemoModal}
+                  aria-label="Close demo"
+                >
+                  ✕
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
-        </div>
-      </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

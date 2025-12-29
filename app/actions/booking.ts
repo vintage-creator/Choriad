@@ -1,6 +1,8 @@
+// app/actions/booking.ts
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { logWorkerActivity } from "@/lib/worker-activity"
 import { revalidatePath } from "next/cache"
 
 export async function createBooking(jobId: string, workerId: string, scheduledDate: string, amountNgn: number) {
@@ -40,6 +42,19 @@ export async function createBooking(jobId: string, workerId: string, scheduledDa
 
   if (error) throw error
 
+  await logWorkerActivity({
+    supabase,
+    workerId,
+    type: "job_assigned",
+    message: "You were hired for a job",
+    metadata: {
+      job_id: jobId,
+      booking_id: booking.id,
+      scheduled_date: scheduledDate,
+      amount_ngn: amountNgn,
+    },
+  })
+
   // Update job status
   await supabase.from("jobs").update({ status: "assigned", assigned_worker_id: workerId }).eq("id", jobId)
 
@@ -60,6 +75,17 @@ export async function updateBookingStatus(bookingId: string, status: string) {
   const { error } = await supabase.from("bookings").update({ status }).eq("id", bookingId)
 
   if (error) throw error
+
+  await logWorkerActivity({
+    supabase,
+    workerId: user.id, // see note below
+    type: "notification",
+    message: `Booking status updated to "${status}"`,
+    metadata: {
+      booking_id: bookingId,
+      status,
+    },
+  })
 
   // If completed, update job status
   if (status === "completed") {

@@ -38,7 +38,7 @@ export default function PricingPage() {
       icon: Zap
     },
     {
-      name: "For Providers",
+      name: "For Workers",
       description: "Keep most of what you earn",
       price: "85%",
       period: "of your service fee",

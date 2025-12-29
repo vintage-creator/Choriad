@@ -1,82 +1,102 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { Header } from "@/components/landing/header"
-import { Footer } from "@/components/landing/footer"
-import { motion } from "framer-motion"
-import { LogIn, Sparkles, Eye, EyeOff, Lock } from "lucide-react"
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Header } from "@/components/landing/header";
+import { Footer } from "@/components/landing/footer";
+import { motion } from "framer-motion";
+import { LogIn, Sparkles, Eye, EyeOff, Lock } from "lucide-react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    general?: string;
+  }>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {}
+    const newErrors: { email?: string; password?: string } = {};
 
     // Email validation
     if (!email) {
-      newErrors.email = "Email is required"
+      newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Please enter a valid email address"
+      newErrors.email = "Please enter a valid email address";
     }
 
     // Password validation
     if (!password) {
-      newErrors.password = "Password is required"
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters"
+      newErrors.password = "Password must be at least 6 characters";
     }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!validateForm()) {
-      return
+      return;
     }
 
-    const supabase = createClient()
-    setIsLoading(true)
-    setErrors({})
+    const supabase = createClient();
+    setIsLoading(true);
+    setErrors({});
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      })
-      if (error) throw error
+      });
+      if (error) throw error;
 
-      const { data: profile } = await supabase.from("profiles").select("user_type").single()
+      const user = (await supabase.auth.getUser()).data.user;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("id", user?.id)
+        .single();
 
-      if (profile?.user_type === "worker") {
-        router.push("/worker/dashboard")
+      if (profile?.user_type === "admin") {
+        router.push("/admin/dashboard");
+      } else if (profile?.user_type === "worker") {
+        router.push("/worker/dashboard");
       } else {
-        router.push("/client/dashboard")
+        router.push("/client/dashboard");
       }
     } catch (error: unknown) {
-      setErrors({ 
-        general: error instanceof Error ? error.message : "An error occurred during login" 
-      })
+      setErrors({
+        general:
+          error instanceof Error
+            ? error.message
+            : "An error occurred during login",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <>
@@ -99,7 +119,7 @@ export default function LoginPage() {
                       Welcome Back
                     </CardTitle>
                     <CardDescription className="text-center">
-                      Sign in to your Choraid account
+                      Sign in to your Choriad account
                     </CardDescription>
                   </div>
                 </div>
@@ -119,27 +139,37 @@ export default function LoginPage() {
                         required
                         value={email}
                         onChange={(e) => {
-                          setEmail(e.target.value)
+                          setEmail(e.target.value);
                           if (errors.email) {
-                            setErrors(prev => ({ ...prev, email: undefined }))
+                            setErrors((prev) => ({
+                              ...prev,
+                              email: undefined,
+                            }));
                           }
                         }}
                         className={`h-12 px-4 border-2 transition-colors duration-300 ${
-                          errors.email ? 'border-destructive focus:border-destructive' : 'border-border focus:border-primary/50'
+                          errors.email
+                            ? "border-destructive focus:border-destructive"
+                            : "border-border focus:border-primary/50"
                         }`}
                       />
                       {errors.email && (
-                        <p className="text-sm text-destructive mt-1">{errors.email}</p>
+                        <p className="text-sm text-destructive mt-1">
+                          {errors.email}
+                        </p>
                       )}
                     </div>
 
                     <div className="grid gap-3">
                       <div className="flex justify-between items-center">
-                        <Label htmlFor="password" className="text-sm font-medium">
+                        <Label
+                          htmlFor="password"
+                          className="text-sm font-medium"
+                        >
                           Password
                         </Label>
-                        <Link 
-                          href="/auth/forgot-password" 
+                        <Link
+                          href="/auth/forgot-password"
                           className="text-sm text-primary hover:text-primary/80 font-medium underline-offset-4 hover:underline transition-colors duration-200"
                         >
                           Forgot password?
@@ -152,13 +182,18 @@ export default function LoginPage() {
                           required
                           value={password}
                           onChange={(e) => {
-                            setPassword(e.target.value)
+                            setPassword(e.target.value);
                             if (errors.password) {
-                              setErrors(prev => ({ ...prev, password: undefined }))
+                              setErrors((prev) => ({
+                                ...prev,
+                                password: undefined,
+                              }));
                             }
                           }}
                           className={`h-12 px-4 pr-12 border-2 transition-colors duration-300 ${
-                            errors.password ? 'border-destructive focus:border-destructive' : 'border-border focus:border-primary/50'
+                            errors.password
+                              ? "border-destructive focus:border-destructive"
+                              : "border-border focus:border-primary/50"
                           }`}
                         />
                         <button
@@ -166,26 +201,34 @@ export default function LoginPage() {
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-200"
                           onClick={() => setShowPassword(!showPassword)}
                         >
-                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          {showPassword ? (
+                            <EyeOff className="h-5 w-5" />
+                          ) : (
+                            <Eye className="h-5 w-5" />
+                          )}
                         </button>
                       </div>
                       {errors.password && (
-                        <p className="text-sm text-destructive mt-1">{errors.password}</p>
+                        <p className="text-sm text-destructive mt-1">
+                          {errors.password}
+                        </p>
                       )}
                     </div>
 
                     {errors.general && (
-                      <motion.div 
+                      <motion.div
                         className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                       >
-                        <p className="text-sm text-destructive text-center">{errors.general}</p>
+                        <p className="text-sm text-destructive text-center">
+                          {errors.general}
+                        </p>
                       </motion.div>
                     )}
 
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                       disabled={isLoading}
                     >
@@ -206,8 +249,8 @@ export default function LoginPage() {
                   <div className="mt-6 text-center">
                     <p className="text-sm text-muted-foreground">
                       Don't have an account?{" "}
-                      <Link 
-                        href="/auth/sign-up" 
+                      <Link
+                        href="/auth/sign-up"
                         className="text-primary hover:text-primary/80 font-medium underline-offset-4 hover:underline transition-colors duration-200"
                       >
                         Create account
@@ -222,5 +265,5 @@ export default function LoginPage() {
       </div>
       <Footer />
     </>
-  )
+  );
 }

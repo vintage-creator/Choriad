@@ -10,20 +10,31 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { AIJobSuggestions } from "@/components/client/ai-job-suggestions"
 
+/**
+ * Choriad service categories (aligned with FeaturesSection)
+ */
 const categories = [
-  "Grocery Shopping",
-  "Home Cleaning",
-  "Errands & Delivery",
-  "Package Collection",
-  "Meal Prep",
-  "Handyman Services",
-  "Other",
+  { value: "market_runs", label: "Market Runs (Oja Shopping)" },
+  { value: "home_cleaning", label: "Home Cleaning" },
+  { value: "errands_delivery", label: "Errands & Deliveries (Go-Come)" },
+  { value: "tutorial_services", label: "Tutorial Services" },
+  { value: "home_chef", label: "Home Chef / Home Cooking" },
+  { value: "handyman_services", label: "Handyman Services (Oga)" },
+  { value: "event_support", label: "Event Support / Party Help" },
+  { value: "elderly_care", label: "Elderly Care / Caregiver" },
+  { value: "other", label: "Other / Custom Task" },
 ]
 
-const cities = ["Lagos", "Abuja", "Port Harcourt"]
+const cities = ["Apapa", "Alaba", "Badagry", "Owerri", "Oshodi", "Ikeja", "Jakande", "Lekki Phase 1", "Lekki Phase 2", "Surulere", "Sangotedo", "Abuja", "Port Harcourt", "Umuahia"]
 
 const urgencyOptions = [
   { value: "urgent", label: "Urgent (within hours)" },
@@ -40,6 +51,7 @@ export function JobPostForm({ userId }: JobPostFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
   const [formData, setFormData] = useState({
     description: "",
     category: "",
@@ -61,12 +73,16 @@ export function JobPostForm({ userId }: JobPostFormProps) {
         title: formDataObj.get("title") as string,
         description: formDataObj.get("description") as string,
         category: formDataObj.get("category") as string,
+        urgency: formDataObj.get("urgency") as string,
+
         location_city: formDataObj.get("location_city") as string,
         location_area: formDataObj.get("location_area") as string,
         location_address: formDataObj.get("location_address") as string,
-        budget_min_ngn: Number.parseInt(formDataObj.get("budget_min") as string) || null,
-        budget_max_ngn: Number.parseInt(formDataObj.get("budget_max") as string) || null,
-        urgency: formDataObj.get("urgency") as string,
+
+        budget_min_ngn:
+          Number.parseInt(formDataObj.get("budget_min") as string) || null,
+        budget_max_ngn:
+          Number.parseInt(formDataObj.get("budget_max") as string) || null,
       })
 
       if (error) throw error
@@ -83,34 +99,50 @@ export function JobPostForm({ userId }: JobPostFormProps) {
     <Card>
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Task Title</Label>
-            <Input id="title" name="title" placeholder="e.g., Weekly grocery shopping" required />
+            <Input
+              id="title"
+              name="title"
+              placeholder="e.g., Buy groceries from Mile 12 market"
+              required
+            />
           </div>
 
+          {/* Description */}
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               name="description"
-              placeholder="Provide details about what you need help with..."
               rows={4}
+              placeholder="Explain exactly what you need done, timing, special instructions, etc."
               required
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
             />
           </div>
 
+          {/* Category + Urgency */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select name="category" required onValueChange={(value) => setFormData({ ...formData, category: value })}>
+              <Label htmlFor="category">Service Category</Label>
+              <Select
+                name="category"
+                required
+                onValueChange={(value) =>
+                  setFormData({ ...formData, category: value })
+                }
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select service type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.value} value={cat.value}>
+                      {cat.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -134,12 +166,15 @@ export function JobPostForm({ userId }: JobPostFormProps) {
             </div>
           </div>
 
+          {/* Location */}
           <div className="space-y-2">
             <Label htmlFor="location_city">City</Label>
             <Select
               name="location_city"
               required
-              onValueChange={(value) => setFormData({ ...formData, location_city: value })}
+              onValueChange={(value) =>
+                setFormData({ ...formData, location_city: value })
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select city" />
@@ -156,36 +191,51 @@ export function JobPostForm({ userId }: JobPostFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="location_area">Area/Neighborhood</Label>
-              <Input id="location_area" name="location_area" placeholder="e.g., Victoria Island" />
+              <Label htmlFor="location_area">Area / Neighbourhood</Label>
+              <Input
+                id="location_area"
+                name="location_area"
+                placeholder="e.g., Lekki Phase 1"
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="location_address">Address (Optional)</Label>
-              <Input id="location_address" name="location_address" placeholder="Specific address" />
+              <Input
+                id="location_address"
+                name="location_address"
+                placeholder="Street, building, gate details"
+              />
             </div>
           </div>
 
+          {/* Budget */}
           <div className="space-y-2">
             <Label>Budget (₦)</Label>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Input id="budget_min" name="budget_min" type="number" placeholder="Min amount" min="0" step="100" />
-              </div>
-              <div>
-                <Input
-                  id="budget_max"
-                  name="budget_max"
-                  type="number"
-                  placeholder="Max amount"
-                  min="0"
-                  step="100"
-                  onChange={(e) => setFormData({ ...formData, budget_max: e.target.value })}
-                />
-              </div>
+              <Input
+                id="budget_min"
+                name="budget_min"
+                type="number"
+                placeholder="Min"
+                min="0"
+                step="100"
+              />
+              <Input
+                id="budget_max"
+                name="budget_max"
+                type="number"
+                placeholder="Max"
+                min="0"
+                step="100"
+                onChange={(e) =>
+                  setFormData({ ...formData, budget_max: e.target.value })
+                }
+              />
             </div>
           </div>
 
+          {/* AI Suggestions */}
           <AIJobSuggestions
             jobDescription={formData.description}
             category={formData.category}
@@ -195,6 +245,7 @@ export function JobPostForm({ userId }: JobPostFormProps) {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
+          {/* Actions */}
           <div className="flex gap-4">
             <Button type="submit" disabled={isLoading} className="flex-1">
               {isLoading ? "Posting..." : "Post Task"}

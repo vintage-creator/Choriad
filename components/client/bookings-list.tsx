@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Calendar, DollarSign, User } from "lucide-react"
+import { Calendar, PiggyBank, User } from "lucide-react"
 
 interface Booking {
   id: string
@@ -83,7 +83,7 @@ export function BookingsList({ bookings }: BookingsListProps) {
                 {new Date(booking.scheduled_date).toLocaleDateString()}
               </div>
               <div className="flex items-center gap-1">
-                <DollarSign className="h-4 w-4" />₦{booking.amount_ngn.toLocaleString()}
+                <PiggyBank className="h-4 w-4" />₦{booking.amount_ngn.toLocaleString()}
               </div>
             </div>
             <div className="flex gap-2">

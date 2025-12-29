@@ -136,7 +136,7 @@ export default function SignUpPage() {
                   </div>
                   <div>
                     <CardTitle className="text-2xl bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent text-center">
-                      Join Choraid
+                      Join Choriad
                     </CardTitle>
                     <CardDescription className="text-center">
                       Create your account in less than 2 minutes

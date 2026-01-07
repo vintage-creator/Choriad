@@ -1,4 +1,4 @@
-// app/client/dashboard/page.tsx - Updated with toast integration
+// app/client/dashboard/page.tsx 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/client/dashboard-header";
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Users, Clock, Calendar, AlertCircle } from "lucide-react";
+import { Plus, TrendingUp, Users, Clock, Calendar, AlertCircle, CreditCard, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/landing/footer";
 import { Toaster } from "react-hot-toast";
@@ -45,17 +45,39 @@ export default async function ClientDashboardPage() {
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
-  const { count: bookingsCount } = await supabase
+  // Get ALL bookings to check payment status
+  const { data: bookings } = await supabase
     .from("bookings")
-    .select("*", { count: "exact", head: true })
+    .select("job_id, payment_status, status")
     .eq("client_id", user.id);
 
-  // Use the server action to get pending applications count for this client
+  // FIXED: Track pending payment tasks
+  const pendingPaymentJobs = jobs?.filter((job) => {
+    // Find booking for this job
+    const jobBooking = bookings?.find(b => b.job_id === job.id);
+    // Job is "pending payment" if it's assigned but booking payment is pending
+    return job.status === "assigned" && jobBooking?.payment_status === "pending";
+  }).length || 0;
+
+  // Use the server action to get pending applications count
   const pendingResult = await checkForPendingApplications(user.id);
   const pendingApplications = (pendingResult && pendingResult.pendingApplications) ? pendingResult.pendingApplications : 0;
 
   const completedJobs = jobs?.filter((job) => job.status === "completed").length || 0;
   const openJobs = jobs?.filter((job) => job.status === "open").length || 0;
+  
+  // Active jobs = assigned/in_progress WITH payment completed
+  const activeJobs = jobs?.filter((job) => {
+    const jobBooking = bookings?.find(b => b.job_id === job.id);
+    return (job.status === "assigned" || job.status === "in_progress") && 
+           jobBooking?.payment_status === "paid";
+  }).length || 0;
+
+  // Count active bookings (paid and confirmed/in progress)
+  const activeBookingsCount = bookings?.filter(b => 
+    b.payment_status === "paid" && 
+    (b.status === "confirmed" || b.status === "in_progress")
+  ).length || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
@@ -82,7 +104,7 @@ export default async function ClientDashboardPage() {
           </p>
         </section>
 
-        {/* Stats with pending applications alert */}
+        {/* FIXED: Updated stats with pending payment tracking */}
         <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {[
             {
@@ -92,14 +114,26 @@ export default async function ClientDashboardPage() {
               bg: "bg-blue-500",
               labelColor: "text-blue-600",
               valueColor: "text-blue-900",
+              href: null,
             },
             {
-              label: "Open Tasks",
-              value: openJobs,
-              icon: <AlertCircle className="w-6 h-6 text-white" />,
+              label: "Pending Payment",
+              value: pendingPaymentJobs,
+              icon: <CreditCard className="w-6 h-6 text-white" />,
               bg: "bg-amber-500",
               labelColor: "text-amber-600",
               valueColor: "text-amber-900",
+              href: pendingPaymentJobs > 0 ? "/client/bookings" : null,
+              highlight: pendingPaymentJobs > 0,
+            },
+            {
+              label: "Active Tasks",
+              value: activeJobs,
+              icon: <Clock className="w-6 h-6 text-white" />,
+              bg: "bg-purple-500",
+              labelColor: "text-purple-600",
+              valueColor: "text-purple-900",
+              href: null,
             },
             {
               label: "Completed",
@@ -108,46 +142,70 @@ export default async function ClientDashboardPage() {
               bg: "bg-green-500",
               labelColor: "text-green-600",
               valueColor: "text-green-900",
-            },
-            {
-              label: "Pending Applications",
-              value: pendingApplications ?? 0,
-              icon: <Clock className="w-6 h-6 text-white" />,
-              bg: "bg-purple-500",
-              labelColor: "text-purple-600",
-              valueColor: "text-purple-900",
+              href: null,
             },
           ].map((item, idx) => (
-            <Card
+            <Link
               key={idx}
-              className="border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-shadow"
+              href={item.href || "#"}
+              className={item.href ? "cursor-pointer" : "pointer-events-none"}
             >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p
-                      className={`text-sm font-medium mb-1 ${item.labelColor}`}
-                    >
-                      {item.label}
-                    </p>
-                    <p className={`text-3xl font-bold ${item.valueColor}`}>
-                      {item.value}
-                    </p>
+              <Card
+                className={`border-0 shadow-lg bg-white/80 backdrop-blur-sm hover:shadow-xl transition-all ${
+                  item.highlight ? "ring-2 ring-amber-400 animate-pulse" : ""
+                }`}
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className={`text-sm font-medium mb-1 ${item.labelColor}`}>
+                        {item.label}
+                      </p>
+                      <p className={`text-3xl font-bold ${item.valueColor}`}>
+                        {item.value}
+                      </p>
+                      {item.highlight && (
+                        <p className="text-xs text-amber-600 mt-1 font-medium">
+                          ⚠️ Action required
+                        </p>
+                      )}
+                    </div>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${item.bg}`}>
+                      {item.icon}
+                    </div>
                   </div>
-                  <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${item.bg}`}
-                  >
-                    {item.icon}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </section>
 
+        {/* FIXED: Alert for pending payments */}
+        {pendingPaymentJobs > 0 && (
+          <Card className="border-2 border-amber-200 bg-amber-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-900">Payment Required</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    You have {pendingPaymentJobs} task{pendingPaymentJobs > 1 ? "s" : ""} awaiting payment to secure your booking.
+                  </p>
+                  <Button asChild size="sm" className="mt-3 bg-amber-600 hover:bg-amber-700">
+                    <Link href="/client/bookings">
+                      Complete Payment →
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <JobsList jobs={jobs ?? []} />
+            {/* FIXED: Limit to 5 jobs + See More button */}
+            <JobsList jobs={jobs ?? []} limit={5} />
 
             {/* Quick Stats Card */}
             <Card className="border border-border/30 shadow-md rounded-2xl bg-white/95 backdrop-blur-sm">
@@ -156,7 +214,7 @@ export default async function ClientDashboardPage() {
                   Task Statistics
                 </CardTitle>
                 <CardDescription className="text-sm">
-                  Overview of your tasks and applications
+                  Overview of your tasks and bookings
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-2">
@@ -169,16 +227,16 @@ export default async function ClientDashboardPage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Avg. Applications/Task</span>
-                      <span className="font-semibold">
-                        {jobs?.length ? Math.round(jobs.reduce((acc, job) => acc + (job.applications?.[0]?.count || 0), 0) / jobs.length) : 0}
+                      <span className="text-sm text-muted-foreground">Pending Payment</span>
+                      <span className="font-semibold text-amber-600">
+                        {pendingPaymentJobs}
                       </span>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Active Bookings</span>
-                      <span className="font-semibold">{bookingsCount || 0}</span>
+                      <span className="font-semibold">{activeBookingsCount}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Completion Rate</span>
@@ -209,36 +267,40 @@ export default async function ClientDashboardPage() {
                     description: "Create a new task to hire help",
                   },
                   {
-                    href: "/client/applications",
-                    icon: <Users className="w-4 h-4 text-primary" />,
+                    href: "/client/ai-agent",
+                    icon: <Sparkles className="w-4 h-4 text-primary" />,
                     bg: "bg-primary/10",
-                    text: "View Applications",
-                    description: `${pendingApplications || 0} pending applications`,
+                    text: "AI Quick Hire",
+                    description: "Let AI find and book workers",
                   },
                   {
                     href: "/client/bookings",
                     icon: <Calendar className="w-4 h-4 text-blue-500" />,
                     bg: "bg-blue-500/10",
                     text: "Manage Bookings",
-                    description: "Track your active bookings",
+                    description: `${activeBookingsCount} active bookings`,
+                    badge: pendingPaymentJobs > 0 ? pendingPaymentJobs : null,
                   },
                 ].map((item, idx) => (
                   <Button
                     key={idx}
                     variant="outline"
-                    className="w-full justify-start h-auto py-3"
+                    className="w-full justify-start h-auto py-3 relative"
                     asChild
                   >
                     <Link href={item.href} className="flex items-start gap-3">
-                      <span
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.bg} flex-shrink-0`}
-                      >
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.bg} flex-shrink-0`}>
                         {item.icon}
                       </span>
-                      <div className="text-left">
+                      <div className="text-left flex-1">
                         <span className="font-medium block">{item.text}</span>
                         <span className="text-xs text-muted-foreground">{item.description}</span>
                       </div>
+                      {item.badge && (
+                        <span className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   </Button>
                 ))}

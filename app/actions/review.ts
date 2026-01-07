@@ -68,11 +68,27 @@ export async function createReview(formData: FormData) {
       metadata: { booking_id: bookingId, job_id: jobId, rating, client_id: user.id, comment },
     });
 
-    // Recompute worker rating
+    // FIXED: Get worker by matching EITHER id OR user_id
+    // First try to find the worker record
+    const { data: workerRecord } = await supabase
+      .from("workers")
+      .select("id, user_id")
+      .or(`id.eq.${workerId},user_id.eq.${workerId}`)
+      .single();
+
+    if (!workerRecord) {
+      console.error("Worker not found for ID:", workerId);
+      return { error: "Worker not found" };
+    }
+
+    // Use the actual worker table ID for updates
+    const workerTableId = workerRecord.id;
+
+    // Recompute worker rating using the worker's table ID
     const { data: reviews, error: reviewsErr } = await supabase
       .from("reviews")
       .select("rating")
-      .eq("worker_id", workerId);
+      .eq("worker_id", workerId); // Still query by worker_id from reviews
 
     if (!reviewsErr && Array.isArray(reviews) && reviews.length > 0) {
       const numericRatings = reviews.map((r: any) => Number(r.rating)).filter(n => !Number.isNaN(n));
@@ -81,12 +97,21 @@ export async function createReview(formData: FormData) {
         : 0;
       const rounded = Math.round((avgRating + Number.EPSILON) * 100) / 100;
 
+      // FIXED: Update using the worker table's primary key
       const { error: updateErr } = await supabase
         .from("workers")
-        .update({ rating: rounded, total_reviews: numericRatings.length })
-        .eq("id", workerId);
+        .update({ 
+          rating: rounded, 
+          total_reviews: numericRatings.length,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", workerTableId); // Use worker table ID, not user_id
 
-      if (updateErr) console.warn("Failed to update worker rating:", updateErr);
+      if (updateErr) {
+        console.warn("Failed to update worker rating:", updateErr);
+      } else {
+        console.log(`Updated worker ${workerTableId} rating to ${rounded} (${numericRatings.length} reviews)`);
+      }
     }
 
     // Revalidate pages

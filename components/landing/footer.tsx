@@ -105,7 +105,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t text-center">
           <p className="text-muted-foreground">
-            &copy; {new Date().getFullYear()} Choriad. All rights reserved.
+            &copy; {new Date().getFullYear()} Choriad Technologies. All rights reserved.
             <br />
             <span className="text-sm text-black-200">
               Building better communities through trusted services.

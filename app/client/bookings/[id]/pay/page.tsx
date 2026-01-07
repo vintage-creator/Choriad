@@ -1,29 +1,34 @@
-// app/client/jobs/[id]/payment/page.tsx
+// app/client/bookings/[id]/pay/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardHeader } from "@/components/client/dashboard-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Shield, Lock, CheckCircle, Loader2, 
-  CreditCard, Banknote, AlertCircle, ArrowLeft,
-  Smartphone, Building2
+import {
+  Shield,
+  Lock,
+  CheckCircle,
+  Loader2,
+  CreditCard,
+  Banknote,
+  AlertCircle,
+  ArrowLeft,
+  Smartphone,
+  Building2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { initializePayment } from "@/app/actions/flutterwave";
 import Link from "next/link";
 
-export default function JobPaymentPage() {
+export default function BookingPaymentPage() {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
-  const jobId = params.id as string;
-  const bookingIdFromUrl = searchParams.get("booking");
-  
+  const bookingId = params.id as string;
+
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [booking, setBooking] = useState<any>(null);
@@ -34,10 +39,15 @@ export default function JobPaymentPage() {
     async function loadBooking() {
       try {
         const supabase = createClient();
-        
+
         // Get user profile
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not authenticated");
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/auth/login");
+          return;
+        }
 
         const { data: profileData } = await supabase
           .from("profiles")
@@ -47,37 +57,29 @@ export default function JobPaymentPage() {
 
         setProfile(profileData);
 
-        // Get the booking
-        let bookingQuery = supabase
+        // Get the booking by ID
+        const { data: bookingData, error: bookingError } = await supabase
           .from("bookings")
-          .select(`
+          .select(
+            `
             *,
-            jobs(title, description),
-             workers(
+            jobs(title, description, id),
+            workers(
+              id,
               profile_pictures_urls,
               profiles!workers_id_fkey(full_name, avatar_url)
             )
-          `)
-          .eq("job_id", jobId)
-          .eq("client_id", user.id);
-
-        if (bookingIdFromUrl) {
-          bookingQuery = bookingQuery.eq("id", bookingIdFromUrl);
-        } else {
-          bookingQuery = bookingQuery
-            .in("payment_status", ["pending", "pending_payment", "processing"])
-            .order("created_at", { ascending: false })
-            .limit(1);
-        }
-
-        const { data: bookings, error: bookingError } = await bookingQuery;
+          `
+          )
+          .eq("id", bookingId)
+          .eq("client_id", user.id)
+          .single();
 
         if (bookingError) throw bookingError;
-        if (!bookings || bookings.length === 0) {
-          throw new Error("No pending payment found for this job");
+        if (!bookingData) {
+          throw new Error("Booking not found");
         }
 
-        const bookingData = bookings[0];
         setBooking(bookingData);
 
         // Check if already paid
@@ -86,18 +88,17 @@ export default function JobPaymentPage() {
           router.push(`/client/bookings/${bookingData.id}`);
           return;
         }
-
       } catch (err) {
         console.error("Booking load error:", err);
         setError(err instanceof Error ? err.message : "Failed to load booking");
-        toast.error("Failed to load payment details. Please try again.");
+        toast.error("Failed to load payment details");
       } finally {
         setLoading(false);
       }
     }
 
     loadBooking();
-  }, [jobId, bookingIdFromUrl, router]);
+  }, [bookingId, router]);
 
   const handlePayment = async () => {
     if (!booking) return;
@@ -105,15 +106,18 @@ export default function JobPaymentPage() {
     setProcessing(true);
     try {
       const result = await initializePayment(booking.id);
-      
+
       if (result.success && result.link) {
+        // Redirect to Flutterwave payment page
         window.location.href = result.link;
       } else {
         throw new Error("Failed to initialize payment");
       }
     } catch (err) {
       console.error("Payment error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to process payment");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to process payment"
+      );
       setProcessing(false);
     }
   };
@@ -126,7 +130,6 @@ export default function JobPaymentPage() {
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
             <p className="text-lg font-medium">Loading payment details...</p>
-            <p className="text-sm text-muted-foreground mt-2">Please wait</p>
           </div>
         </div>
       </div>
@@ -141,12 +144,19 @@ export default function JobPaymentPage() {
           <Card className="max-w-md mx-4">
             <CardContent className="pt-6 text-center">
               <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Payment Setup Failed</h3>
-              <p className="text-muted-foreground mb-4">{error || "Unable to load payment"}</p>
+              <h3 className="text-lg font-semibold mb-2">
+                Payment Setup Failed
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {error || "Unable to load payment"}
+              </p>
               <div className="flex gap-3 justify-center">
-                <Button variant="outline" onClick={() => router.back()}>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/client/dashboard")}
+                >
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Go Back
+                  Dashboard
                 </Button>
                 <Button onClick={() => window.location.reload()}>
                   Try Again
@@ -170,7 +180,7 @@ export default function JobPaymentPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
       {profile && <DashboardHeader profile={profile} />}
-      
+
       <main className="mx-auto max-w-full sm:max-w-5xl px-4 py-8">
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">

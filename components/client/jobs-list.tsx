@@ -19,6 +19,8 @@ import {
   XCircle,
   MessageSquare,
   Plus,
+  ChevronDown,
+  CreditCard,
 } from "lucide-react";
 import type { Job } from "@/lib/types";
 import { useState } from "react";
@@ -42,6 +44,7 @@ import { MoreVertical } from "lucide-react";
 
 interface JobsListProps {
   jobs: (Job & { applications?: { count: number }[] })[];
+  limit?: number; // NEW: Optional limit for displayed jobs
 }
 
 const statusColors = {
@@ -67,10 +70,11 @@ const formatDate = (iso?: string) => {
   });
 };
 
-export function JobsList({ jobs }: JobsListProps) {
+export function JobsList({ jobs, limit }: JobsListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showAll, setShowAll] = useState(false); // NEW: Toggle for showing all jobs
 
   const handleDeleteJob = async (jobId: string) => {
     setIsDeleting(true);
@@ -78,7 +82,6 @@ export function JobsList({ jobs }: JobsListProps) {
       await deleteJob(jobId);
       toast.success("Task deleted successfully");
       setDeleteDialogOpen(false);
-      // Refresh the page to show updated list
       window.location.reload();
     } catch (error) {
       toast.error(
@@ -119,13 +122,18 @@ export function JobsList({ jobs }: JobsListProps) {
     );
   }
 
+  // NEW: Limit displayed jobs
+  const displayLimit = limit && !showAll ? limit : jobs.length;
+  const displayedJobs = jobs.slice(0, displayLimit);
+  const hasMore = jobs.length > displayLimit;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold">Your Tasks</h2>
           <p className="text-muted-foreground">
-            Manage and track all your posted tasks
+            {jobs.length} total task{jobs.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Button asChild>
@@ -135,25 +143,36 @@ export function JobsList({ jobs }: JobsListProps) {
           </Link>
         </Button>
       </div>
+
       <div className="grid gap-4">
-        {jobs.map((job) => {
+        {displayedJobs.map((job) => {
           const applicationCount = job.applications?.[0]?.count || 0;
+          
+          // Check if this job has pending payment
+          const isPendingPayment = job.status === "assigned"; // Will be enhanced with booking check
 
           return (
             <Card
               key={job.id}
-              className="hover:shadow-lg transition-shadow duration-300"
+              className={`hover:shadow-lg transition-shadow duration-300 ${
+                isPendingPayment ? "ring-2 ring-amber-300" : ""
+              }`}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <CardTitle className="text-xl">{job.title}</CardTitle>
                       <Badge className={statusColors[job.status]}>
                         {job.status.replace("_", " ")}
                       </Badge>
+                      {isPendingPayment && (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                          <CreditCard className="w-3 h-3 mr-1" />
+                          Payment Pending
+                        </Badge>
+                      )}
                     </div>
-                    {/* Posted date under title */}
                     <p className="text-xs text-muted-foreground mb-2 flex items-center gap-2">
                       <Calendar className="h-3.5 w-3.5" />
                       <span>Posted {formatDate(job.created_at)}</span>
@@ -218,20 +237,15 @@ export function JobsList({ jobs }: JobsListProps) {
                         </DropdownMenuItem>
                       )}
                       {job.status === "completed" && (
-                        <>
-                          <Button
-                            size="sm"
-                            asChild
-                            className="bg-green-600 hover:bg-green-700"
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href={`/client/bookings?job=${job.id}&action=review`}
+                            className="cursor-pointer"
                           >
-                            <Link
-                              href={`/client/bookings?job=${job.id}&action=review`}
-                            >
-                              <Star className="mr-2 h-4 w-4" />
-                              Leave Review
-                            </Link>
-                          </Button>
-                        </>
+                            <Star className="h-4 w-4 mr-2" />
+                            Leave Review
+                          </Link>
+                        </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
                         onClick={() => {
@@ -305,12 +319,22 @@ export function JobsList({ jobs }: JobsListProps) {
                   )}
 
                   {job.status === "assigned" && (
-                    <Button size="sm" asChild variant="secondary">
-                      <Link href={`/client/jobs/${job.id}/manage`}>
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                        Manage Worker
-                      </Link>
-                    </Button>
+                    <>
+                      {isPendingPayment && (
+                        <Button size="sm" asChild className="bg-amber-600 hover:bg-amber-700">
+                          <Link href="/client/bookings">
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Complete Payment
+                          </Link>
+                        </Button>
+                      )}
+                      <Button size="sm" asChild variant="secondary">
+                        <Link href={`/client/jobs/${job.id}/manage`}>
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          Manage Worker
+                        </Link>
+                      </Button>
+                    </>
                   )}
 
                   {job.status === "in_progress" && (
@@ -327,6 +351,29 @@ export function JobsList({ jobs }: JobsListProps) {
           );
         })}
       </div>
+
+      {/* NEW: See More / See Less Button */}
+      {limit && hasMore && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            onClick={() => setShowAll(!showAll)}
+            className="w-full sm:w-auto"
+          >
+            {showAll ? (
+              <>
+                Show Less
+                <ChevronDown className="ml-2 h-4 w-4 rotate-180" />
+              </>
+            ) : (
+              <>
+                Show {jobs.length - displayLimit} More Task{jobs.length - displayLimit !== 1 ? "s" : ""}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

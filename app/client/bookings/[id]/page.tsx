@@ -1,3 +1,4 @@
+// app/client/bookings/[id]/page.tsx
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/client/dashboard-header";

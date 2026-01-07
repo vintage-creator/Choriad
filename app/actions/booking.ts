@@ -72,13 +72,24 @@ export async function updateBookingStatus(bookingId: string, status: string) {
     throw new Error("Unauthorized")
   }
 
+  // Get booking details
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("*, jobs(assigned_worker_id)")
+    .eq("id", bookingId)
+    .single()
+
+  if (!booking) {
+    throw new Error("Booking not found")
+  }
+
   const { error } = await supabase.from("bookings").update({ status }).eq("id", bookingId)
 
   if (error) throw error
 
   await logWorkerActivity({
     supabase,
-    workerId: user.id, // see note below
+    workerId: booking.worker_id,
     type: "notification",
     message: `Booking status updated to "${status}"`,
     metadata: {
@@ -87,11 +98,50 @@ export async function updateBookingStatus(bookingId: string, status: string) {
     },
   })
 
-  // If completed, update job status
+  // FIXED: If completed, update job status AND increment worker's completed_jobs
   if (status === "completed") {
-    const { data: booking } = await supabase.from("bookings").select("job_id").eq("id", bookingId).single()
-    if (booking) {
-      await supabase.from("jobs").update({ status: "completed" }).eq("id", booking.job_id)
+    const { data: bookingData } = await supabase
+      .from("bookings")
+      .select("job_id, worker_id")
+      .eq("id", bookingId)
+      .single()
+
+    if (bookingData) {
+      // Update job status
+      await supabase
+        .from("jobs")
+        .update({ 
+          status: "completed",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", bookingData.job_id)
+
+      // FIXED: Increment worker's completed_jobs counter
+      // First get worker record
+      const { data: workerRecord } = await supabase
+        .from("workers")
+        .select("id, completed_jobs, user_id")
+        .or(`id.eq.${bookingData.worker_id},user_id.eq.${bookingData.worker_id}`)
+        .single()
+
+      if (workerRecord) {
+        const newCompletedJobs = (workerRecord.completed_jobs || 0) + 1
+        
+        const { error: updateErr } = await supabase
+          .from("workers")
+          .update({ 
+            completed_jobs: newCompletedJobs,
+            total_jobs: newCompletedJobs, 
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", workerRecord.id)
+
+        if (updateErr) {
+          console.warn("Failed to increment completed_jobs:", updateErr)
+        } else {
+          console.log(`Incremented worker ${workerRecord.id} completed_jobs to ${newCompletedJobs}`)
+        }
+      }
     }
   }
 

@@ -1,4 +1,3 @@
-// app/client/ai-agent/page.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -55,6 +54,9 @@ export default function AIAgentPage() {
   const [inputValue, setInputValue] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState(
+    "Finding the best providers..."
+  );
 
   // Auth & profile check
   useEffect(() => {
@@ -134,6 +136,67 @@ export default function AIAgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Simple intent-based loading message selector
+  function getLoadingMessageForInput(text: string, msgs: Message[]) {
+    const s = (text || "").toLowerCase();
+    // keywords
+    const providerKeywords = [
+      "find",
+      "search",
+      "providers",
+      "provider",
+      "plumber",
+      "cleaner",
+      "handyman",
+      "worker",
+      "find me",
+    ];
+    const bookingKeywords = [
+      "book",
+      "availability",
+      "schedule",
+      "confirm",
+      "booking",
+    ];
+    const priceKeywords = [
+      "price",
+      "cost",
+      "budget",
+      "how much",
+      "quote",
+      "estimate",
+    ];
+    const fallbackOptions = [
+      "Thinking...",
+      "Working on it...",
+      "Crunching results...",
+    ];
+
+    if (providerKeywords.some((k) => s.includes(k))) {
+      return "Finding the best providers...";
+    }
+    if (bookingKeywords.some((k) => s.includes(k))) {
+      return "Checking availability...";
+    }
+    if (priceKeywords.some((k) => s.includes(k))) {
+      return "Calculating the best price...";
+    }
+
+    // check recent assistant parts for tools
+    const lastAssistant = [...msgs]
+      .reverse()
+      .find((m) => m.role === "assistant");
+    const lastPartType = lastAssistant?.parts?.[0]?.type ?? "";
+    if (
+      typeof lastPartType === "string" &&
+      lastPartType.includes("tool-searchWorkers")
+    ) {
+      return "Finding the best providers...";
+    }
+
+    return fallbackOptions[Math.floor(Math.random() * fallbackOptions.length)];
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isLoading || !userId) return;
@@ -146,6 +209,14 @@ export default function AIAgentPage() {
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
+
+    // compute loading message now
+    const chosen = getLoadingMessageForInput(inputValue, [
+      ...messages,
+      userMessage,
+    ]);
+    setLoadingMessage(chosen);
+
     setIsLoading(true);
 
     try {
@@ -161,7 +232,9 @@ export default function AIAgentPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`
+        );
       }
 
       const data = await response.json();
@@ -181,13 +254,17 @@ export default function AIAgentPage() {
           parts: [
             {
               type: "text",
-              text: `⚠️ Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or rephrase your request.`,
+              text: `⚠️ Sorry, I encountered an error: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }. Please try again or rephrase your request.`,
             },
           ],
         },
       ]);
     } finally {
       setIsLoading(false);
+      // reset loading message to default
+      setLoadingMessage("Finding the best providers...");
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
@@ -234,7 +311,10 @@ export default function AIAgentPage() {
                 asChild
                 className="text-muted-foreground hover:text-foreground hover:bg-slate-100 -ml-2"
               >
-                <Link href="/client/dashboard" className="flex items-center gap-2">
+                <Link
+                  href="/client/dashboard"
+                  className="flex items-center gap-2"
+                >
                   <ArrowLeft className="w-4 h-4" />
                   <span className="hidden sm:inline text-sm">Back</span>
                 </Link>
@@ -245,9 +325,11 @@ export default function AIAgentPage() {
                   <Bot className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="font-semibold text-base sm:text-lg">AI Booking Agent</h1>
+                  <h1 className="font-semibold text-base sm:text-lg">
+                    AI Booking Agent
+                  </h1>
                   <p className="text-xs text-muted-foreground hidden sm:block">
-                    Powered by Gemini AI
+                    Powered by Vintage
                   </p>
                 </div>
               </div>
@@ -255,7 +337,10 @@ export default function AIAgentPage() {
 
             {profile && (
               <div className="hidden md:flex items-center gap-3">
-                <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200">
+                <Badge
+                  variant="secondary"
+                  className="bg-green-50 text-green-700 border-green-200"
+                >
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
                   Online
                 </Badge>
@@ -326,14 +411,18 @@ export default function AIAgentPage() {
                         if (partType === "tool-searchWorkers") {
                           if (part.state === "output-available") {
                             const output = part.output || {};
-                            const workers = Array.isArray(output.workers) ? output.workers : [];
+                            const workers = Array.isArray(output.workers)
+                              ? output.workers
+                              : [];
                             const success = output.success;
 
                             return (
                               <div key={partIndex} className="space-y-4 mt-2">
                                 <div
                                   className={`flex items-center gap-2 font-medium text-sm ${
-                                    success ? "text-green-600" : "text-amber-600"
+                                    success
+                                      ? "text-green-600"
+                                      : "text-amber-600"
                                   }`}
                                 >
                                   {success ? (
@@ -343,7 +432,11 @@ export default function AIAgentPage() {
                                   )}
                                   <span>
                                     {success
-                                      ? `Found ${workers.length} matching provider${workers.length !== 1 ? "s" : ""}`
+                                      ? `Found ${
+                                          workers.length
+                                        } matching provider${
+                                          workers.length !== 1 ? "s" : ""
+                                        }`
                                       : output.message || "No matches found"}
                                   </span>
                                 </div>
@@ -364,7 +457,10 @@ export default function AIAgentPage() {
                                               <div className="flex items-start justify-between gap-3">
                                                 <div className="space-y-1 flex-1 min-w-0">
                                                   <div className="font-semibold text-base text-slate-900 flex items-center gap-2 flex-wrap">
-                                                    <span className="truncate">{worker?.name ?? "Unknown"}</span>
+                                                    <span className="truncate">
+                                                      {worker?.name ??
+                                                        "Unknown"}
+                                                    </span>
                                                     {worker?.verified && (
                                                       <Badge
                                                         variant="secondary"
@@ -384,14 +480,17 @@ export default function AIAgentPage() {
                                                   </div>
 
                                                   {/* Location */}
-                                                  {(worker?.location || worker?.locationArea) && (
+                                                  {(worker?.location ||
+                                                    worker?.locationArea) && (
                                                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                       <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                                                       <span className="truncate">
-                                                        {worker?.location || 
-                                                         (worker?.locationArea && worker?.locationCity 
-                                                           ? `${worker.locationArea}, ${worker.locationCity}` 
-                                                           : worker?.locationArea || worker?.locationCity)}
+                                                        {worker?.location ||
+                                                          (worker?.locationArea &&
+                                                          worker?.locationCity
+                                                            ? `${worker.locationArea}, ${worker.locationCity}`
+                                                            : worker?.locationArea ||
+                                                              worker?.locationCity)}
                                                       </span>
                                                     </div>
                                                   )}
@@ -401,7 +500,8 @@ export default function AIAgentPage() {
                                                   variant="outline"
                                                   className="bg-green-600 text-white border-green-700 text-xs whitespace-nowrap"
                                                 >
-                                                  {worker?.matchScore ?? 0}% Match
+                                                  {worker?.matchScore ?? 0}%
+                                                  Match
                                                 </Badge>
                                               </div>
 
@@ -411,15 +511,17 @@ export default function AIAgentPage() {
                                                   <Star className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                                                   <div className="min-w-0">
                                                     <div className="text-xs font-medium text-slate-900">
-                                                      {worker?.rating > 0 
-                                                        ? worker.rating.toFixed(1) 
-                                                        : worker?.isNewWorker 
-                                                          ? "New" 
-                                                          : "-"}
+                                                      {worker?.rating > 0
+                                                        ? worker.rating.toFixed(
+                                                            1
+                                                          )
+                                                        : worker?.isNewWorker
+                                                        ? "New"
+                                                        : "-"}
                                                     </div>
                                                     <div className="text-[10px] text-muted-foreground truncate">
-                                                      {worker?.totalReviews > 0 
-                                                        ? `(${worker.totalReviews} reviews)` 
+                                                      {worker?.totalReviews > 0
+                                                        ? `(${worker.totalReviews} reviews)`
                                                         : "(No reviews)"}
                                                     </div>
                                                   </div>
@@ -429,12 +531,14 @@ export default function AIAgentPage() {
                                                   <PiggyBank className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
                                                   <div className="min-w-0">
                                                     <div className="text-xs font-medium text-slate-900 truncate">
-                                                      {worker?.hourlyRate > 0 
-                                                        ? `₦${worker.hourlyRate.toLocaleString()}` 
+                                                      {worker?.hourlyRate > 0
+                                                        ? `₦${worker.hourlyRate.toLocaleString()}`
                                                         : "Negotiable"}
                                                     </div>
                                                     <div className="text-[10px] text-muted-foreground truncate">
-                                                      {worker?.hourlyRate > 0 ? "per hour" : "contact for rate"}
+                                                      {worker?.hourlyRate > 0
+                                                        ? "per hour"
+                                                        : "contact for rate"}
                                                     </div>
                                                   </div>
                                                 </div>
@@ -443,7 +547,8 @@ export default function AIAgentPage() {
                                                   <Briefcase className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
                                                   <div className="min-w-0">
                                                     <div className="text-xs font-medium text-slate-900">
-                                                      {worker?.completedJobs ?? 0}
+                                                      {worker?.completedJobs ??
+                                                        0}
                                                     </div>
                                                     <div className="text-[10px] text-muted-foreground truncate">
                                                       completed
@@ -458,31 +563,48 @@ export default function AIAgentPage() {
                                                       Available
                                                     </div>
                                                     <div className="text-[10px] text-muted-foreground truncate">
-                                                      {worker?.availability?.length ?? 0} days
+                                                      {worker?.availability
+                                                        ?.length ?? 0}{" "}
+                                                      days
                                                     </div>
                                                   </div>
                                                 </div>
                                               </div>
 
                                               {/* Skills */}
-                                              {Array.isArray(worker?.skills) && worker.skills.length > 0 && (
-                                                <div className="flex flex-wrap gap-1.5 pt-2">
-                                                  {worker.skills.slice(0, 4).map((skill: string, i: number) => (
-                                                    <Badge
-                                                      key={i}
-                                                      variant="secondary"
-                                                      className="bg-white/80 text-slate-700 text-xs"
-                                                    >
-                                                      {skill}
-                                                    </Badge>
-                                                  ))}
-                                                  {worker.skills.length > 4 && (
-                                                    <Badge variant="outline" className="text-xs">
-                                                      +{worker.skills.length - 4} more
-                                                    </Badge>
-                                                  )}
-                                                </div>
-                                              )}
+                                              {Array.isArray(worker?.skills) &&
+                                                worker.skills.length > 0 && (
+                                                  <div className="flex flex-wrap gap-1.5 pt-2">
+                                                    {worker.skills
+                                                      .slice(0, 4)
+                                                      .map(
+                                                        (
+                                                          skill: string,
+                                                          i: number
+                                                        ) => (
+                                                          <Badge
+                                                            key={i}
+                                                            variant="secondary"
+                                                            className="bg-white/80 text-slate-700 text-xs"
+                                                          >
+                                                            {skill}
+                                                          </Badge>
+                                                        )
+                                                      )}
+                                                    {worker.skills.length >
+                                                      4 && (
+                                                      <Badge
+                                                        variant="outline"
+                                                        className="text-xs"
+                                                      >
+                                                        +
+                                                        {worker.skills.length -
+                                                          4}{" "}
+                                                        more
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                )}
                                             </div>
                                           </CardContent>
                                         </Card>
@@ -503,13 +625,20 @@ export default function AIAgentPage() {
                                 <Card className="border border-blue-200 bg-blue-50/50">
                                   <CardContent className="p-3">
                                     <div className="text-sm space-y-2">
-                                      <div className="font-medium text-blue-900">💰 Price Negotiation</div>
-                                      <div className="text-xs text-slate-700">{output.message}</div>
+                                      <div className="font-medium text-blue-900">
+                                        💰 Price Negotiation
+                                      </div>
+                                      <div className="text-xs text-slate-700">
+                                        {output.message}
+                                      </div>
                                       {output.agreedPrice && (
                                         <div className="flex items-center justify-between pt-2 border-t border-blue-200">
-                                          <span className="text-xs text-muted-foreground">Proposed Price:</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            Proposed Price:
+                                          </span>
                                           <span className="font-semibold text-blue-700">
-                                            ₦{output.agreedPrice.toLocaleString()}
+                                            ₦
+                                            {output.agreedPrice.toLocaleString()}
                                           </span>
                                         </div>
                                       )}
@@ -528,7 +657,9 @@ export default function AIAgentPage() {
                               <div key={partIndex} className="space-y-3 mt-2">
                                 <div
                                   className={`flex items-center gap-2 font-medium text-sm ${
-                                    output.success ? "text-green-600" : "text-red-600"
+                                    output.success
+                                      ? "text-green-600"
+                                      : "text-red-600"
                                   }`}
                                 >
                                   {output.success ? (
@@ -546,22 +677,31 @@ export default function AIAgentPage() {
                                         <span className="text-sm font-semibold text-green-800">
                                           🎉 Booking Confirmed!
                                         </span>
-                                        <Badge variant="outline" className="bg-white">
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-white"
+                                        >
                                           #{output.bookingId?.slice(0, 8)}
                                         </Badge>
                                       </div>
 
                                       <div className="grid grid-cols-2 gap-3 text-xs">
                                         <div>
-                                          <div className="text-muted-foreground">Total Amount</div>
+                                          <div className="text-muted-foreground">
+                                            Total Amount
+                                          </div>
                                           <div className="font-semibold text-slate-900">
-                                            ₦{output.agreedAmount?.toLocaleString()}
+                                            ₦
+                                            {output.agreedAmount?.toLocaleString()}
                                           </div>
                                         </div>
                                         <div>
-                                          <div className="text-muted-foreground">Worker Gets</div>
+                                          <div className="text-muted-foreground">
+                                            Worker Gets
+                                          </div>
                                           <div className="font-semibold text-green-700">
-                                            ₦{output.workerPayout?.toLocaleString()}
+                                            ₦
+                                            {output.workerPayout?.toLocaleString()}
                                           </div>
                                         </div>
                                       </div>
@@ -586,8 +726,13 @@ export default function AIAgentPage() {
                         }
 
                         return (
-                          <div key={partIndex} className="text-xs text-muted-foreground bg-slate-100 rounded p-2 overflow-auto max-h-40">
-                            <pre className="whitespace-pre-wrap text-[10px]">{JSON.stringify(part, null, 2)}</pre>
+                          <div
+                            key={partIndex}
+                            className="text-xs text-muted-foreground bg-slate-100 rounded p-2 overflow-auto max-h-40"
+                          >
+                            <pre className="whitespace-pre-wrap text-[10px]">
+                              {JSON.stringify(part, null, 2)}
+                            </pre>
                           </div>
                         );
                       })}
@@ -632,7 +777,7 @@ export default function AIAgentPage() {
                         style={{ animationDelay: "0.2s" }}
                       />
                     </div>
-                    <span>Finding the best providers...</span>
+                    <span aria-live="polite">{loadingMessage}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -715,7 +860,8 @@ export default function AIAgentPage() {
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              💡 <strong>Tip:</strong> Be specific about location, timing, budget, and special requirements for better matches
+              💡 <strong>Tip:</strong> Be specific about location, timing,
+              budget, and special requirements for better matches
             </p>
           </form>
         </div>

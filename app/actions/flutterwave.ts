@@ -44,7 +44,7 @@ export async function initializePayment(bookingId: string) {
     if (!booking) throw new Error("Booking not found");
 
     const totalAmount =
-      Number(booking.amount_ngn || 0) + Number(booking.commission_ngn || 0);
+      Number(booking.amount_ngn || 0);
     if (!totalAmount || totalAmount <= 0)
       throw new Error("Invalid booking amount");
 
@@ -71,7 +71,7 @@ export async function initializePayment(bookingId: string) {
       customizations: {
         title: "Choriad Escrow Payment",
         description: `Payment for: ${booking.jobs?.title || booking.job_id}`,
-        logo: `${APP_URL}/logo.png`,
+        logo: "https://res.cloudinary.com/dcoxo8snb/image/upload/v1767847658/Screenshot_2026-01-08_at_5.47.06_AM_hijkru.png",
       },
     };
 
@@ -190,7 +190,7 @@ export async function verifyPayment(transactionId: string, bookingId: string) {
 
     // Validate amounts (allow tiny variance)
     const expectedAmount =
-      Number(booking.amount_ngn || 0) + Number(booking.commission_ngn || 0);
+      Number(booking.amount_ngn || 0);
     if (Math.abs(flwAmount - expectedAmount) > 10) {
       throw new Error("Payment amount mismatch");
     }

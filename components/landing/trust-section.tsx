@@ -1,3 +1,4 @@
+// trust-section.tsx
 "use client";
 
 import { Shield, Star, Clock, CreditCard } from "lucide-react";

@@ -1,3 +1,4 @@
+// how-it-works-section.tsx
 "use client";
 
 import {

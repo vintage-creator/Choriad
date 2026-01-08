@@ -120,14 +120,6 @@ const tools = {
         const normalizedLocation = normalizeLocation(input.location);
         const normalizedSkills = normalizeSkills(skillsParam || []);
 
-        console.log("Searching workers with:", {
-          originalSkillsParam: input.skills || input.skill || input.service,
-          normalizedSkills,
-          normalizedLocation,
-          maxBudget,
-          urgency: input.urgency
-        });
-
         // Query workers - check BOTH location AND location_city fields
         const { data: workers, error } = await supabase
           .from("workers")
@@ -155,8 +147,6 @@ const tools = {
             message: "No available workers found in the system. Please try again later." 
           };
         }
-
-        console.log(`Found ${workers.length} available workers, now filtering...`);
 
         // AI-powered ranking with flexible matching
         const matchedWorkers = workers
@@ -369,8 +359,6 @@ const tools = {
       const supabase = await createClient();
 
       try {
-        console.log("Creating booking with input:", input);
-        
         const agreedAmountNum = toNum(input.agreedAmount);
 
         // Parse location (could be "ajah, lagos" or just "ajah")
@@ -406,8 +394,6 @@ const tools = {
           };
         }
 
-        console.log("Job created successfully:", job.id);
-
         // 2. Calculate amounts (15% commission)
         const commission = Math.round(agreedAmountNum * 0.15);
         const workerAmount = agreedAmountNum - commission;
@@ -436,8 +422,6 @@ const tools = {
             message: `Failed to create booking: ${bookingError?.message || "Unknown error"}`,
           };
         }
-
-        console.log("Booking created successfully:", booking.id);
 
         // 4. Create notification
         try {
@@ -504,7 +488,7 @@ const tools = {
    Gemini Configuration
    --------------------------- */
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
@@ -604,8 +588,6 @@ export async function POST(req: Request) {
       });
     }
 
-    console.log(`Processing request for authenticated user: ${userId}`);
-
     const messages = incomingMessages.map((msg: any) => ({
       id: msg.id || `msg-${Date.now()}-${Math.random()}`,
       role: msg.role || 'user',
@@ -649,8 +631,6 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log(`Processing ${conversationChunks.length} chunks, user ${userId || 'unknown'}`);
-
     const maxSteps = 8;
     let step = 0;
     let finalAssistantText = "";
@@ -666,7 +646,7 @@ export async function POST(req: Request) {
         contents: [{ parts: [{ text: promptText }] }],
         config: {
           maxOutputTokens: 2048,
-          temperature: 0.3, // Lower temperature to reduce hallucination
+          temperature: 0.3, 
         },
       });
 
@@ -687,7 +667,6 @@ export async function POST(req: Request) {
         if (toolName === 'createBookingWithPayment') {
           if (!toolCall.input.clientId) {
             toolCall.input.clientId = userId;
-            console.log(`Auto-injected clientId: ${userId}`);
           }
           // Validate it's a UUID
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -700,9 +679,7 @@ export async function POST(req: Request) {
 
         let toolResult;
         try {
-          console.log(`Executing tool: ${toolName}`, toolCall.input);
           toolResult = await toolFn(toolCall.input);
-          console.log(`Tool result:`, toolResult);
         } catch (err) {
           console.error(`Tool execution error:`, err);
           toolResult = {

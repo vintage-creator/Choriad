@@ -120,7 +120,7 @@ async function handleClientPayment(txData: any) {
   }
 
   // Validate amounts
-  const expectedAmount = (booking.amount_ngn || 0) + (booking.commission_ngn || 0);
+  const expectedAmount = (booking.amount_ngn || 0);
   if (Math.abs(Number(tx.amount) - expectedAmount) > 20) {
     console.error("Amount mismatch", { expectedAmount, received: tx.amount });
     return new NextResponse(

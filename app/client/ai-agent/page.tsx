@@ -19,8 +19,10 @@ import {
   Star,
   Briefcase,
   Calendar,
+  Info,
   AlertCircle,
 } from "lucide-react";
+import toast from "react-hot-toast"
 import { createBrowserClient } from "@/lib/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { DashboardHeader } from "@/components/client/dashboard-header";
@@ -136,6 +138,95 @@ export default function AIAgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (!userId) return;
+  
+    const supabase = createBrowserClient();
+  
+    // ✅ Subscribe to booking_request updates for this client
+    const channel = supabase
+      .channel('ai-agent-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'booking_requests',
+          filter: `client_id=eq.${userId}`
+        },
+        async (payload) => {
+          const updatedRequest = payload.new;
+          console.log("Booking request updated:", updatedRequest);
+  
+          // Check if worker accepted/countered/rejected
+          if (updatedRequest.status === 'accepted') {
+            // ✅ AUTO-CONTINUE: Inject message from AI agent
+            const autoMessage = {
+              id: `auto-${Date.now()}`,
+              role: 'assistant' as const,
+              parts: [{
+                type: 'text',
+                text: `🎉 **Great news!** The worker just accepted your booking request!\n\nTo complete the booking, you need to make the payment:\n\n✅ Amount: ₦${updatedRequest.proposed_amount_ngn?.toLocaleString()}\n💳 [Click here to pay](/client/booking-requests/${updatedRequest.id}/pay)\n\nYour payment is protected by escrow - the worker only gets paid after you approve the completed work.`
+              }]
+            };
+  
+            setMessages(prev => [...prev, autoMessage]);
+            
+            // Auto-scroll to new message
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+  
+            // Show toast notification
+            toast.success("Worker accepted your request!", {
+              duration: 6000,
+              icon: "🎉"
+            });
+          }
+  
+          if (updatedRequest.status === 'countered') {
+            // ✅ AUTO-CONTINUE: Worker sent counter-offer
+            const autoMessage = {
+              id: `auto-${Date.now()}`,
+              role: 'assistant' as const,
+              parts: [{
+                type: 'text',
+                text: `💬 **The worker sent a counter-offer:**\n\n📊 Your offer: ₦${updatedRequest.proposed_amount_ngn?.toLocaleString()}\n📊 Worker's counter-offer: ₦${updatedRequest.counter_offer_ngn?.toLocaleString()}\n${updatedRequest.counter_note ? `\n💭 Worker's note: "${updatedRequest.counter_note}"\n` : ''}\nWould you like to:\n1️⃣ Accept the counter-offer (₦${updatedRequest.counter_offer_ngn?.toLocaleString()})\n2️⃣ Decline and see other workers\n\nWhat would you prefer?`
+              }]
+            };
+  
+            setMessages(prev => [...prev, autoMessage]);
+            toast("Worker sent a counter-offer", {
+              icon: <Info />,      
+              duration: 5000,
+            });
+          }
+  
+          if (updatedRequest.status === 'rejected') {
+            // ✅ AUTO-CONTINUE: Worker rejected
+            const autoMessage = {
+              id: `auto-${Date.now()}`,
+              role: 'assistant' as const,
+              parts: [{
+                type: 'text',
+                text: `❌ Unfortunately, the worker declined your booking request.\n\nNo worries! I found 2 other great workers in the same area who are available:\n\n🔍 Would you like me to show you alternative workers?`
+              }]
+            };
+  
+            setMessages(prev => [...prev, autoMessage]);
+            toast.error("Worker declined request", {
+              duration: 5000,
+            });
+          }
+        }
+      )
+      .subscribe();
+  
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, setMessages]);
+
   // Simple intent-based loading message selector
   function getLoadingMessageForInput(text: string, msgs: Message[]) {
     const s = (text || "").toLowerCase();
@@ -149,6 +240,7 @@ export default function AIAgentPage() {
       "cleaner",
       "handyman",
       "worker",
+      "need",
       "find me",
     ];
     const bookingKeywords = [
@@ -179,7 +271,7 @@ export default function AIAgentPage() {
       return "Checking availability...";
     }
     if (priceKeywords.some((k) => s.includes(k))) {
-      return "Calculating the best price...";
+      return "Thinking...";
     }
 
     // check recent assistant parts for tools

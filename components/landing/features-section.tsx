@@ -1,4 +1,3 @@
-// features-section.tsx
 "use client";
 
 import {
@@ -27,6 +26,8 @@ const features = [
       "Get your groceries and market items delivered fresh. We know the best prices in town!",
     color: "from-green-500 to-emerald-600",
     africanTerm: "Oja Shopping",
+    image:
+      "https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&q=80",
   },
   {
     icon: Home,
@@ -35,6 +36,8 @@ const features = [
       "Professional cleaning for your home or office. Leave the dirty work to us!",
     color: "from-blue-500 to-cyan-600",
     africanTerm: "House Cleaning",
+    image:
+      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&q=80",
   },
   {
     icon: Car,
@@ -43,6 +46,8 @@ const features = [
       "Need something picked up or delivered across town? We've got you covered.",
     color: "from-orange-400 to-red-500",
     africanTerm: "Go-Come",
+    image:
+      "https://images.unsplash.com/photo-1591768793355-74d04bb6608f?w=600&q=80",
   },
   {
     icon: GraduationCap,
@@ -51,6 +56,8 @@ const features = [
       "Find qualified tutors for your children or personal learning goals.",
     color: "from-purple-500 to-pink-600",
     africanTerm: "Tutor",
+    image:
+      "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&q=80",
   },
   {
     icon: Utensils,
@@ -59,6 +66,8 @@ const features = [
       "Enjoy delicious home-cooked meals prepared by local culinary experts.",
     color: "from-rose-500 to-red-600",
     africanTerm: "Home Cook",
+    image:
+      "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=600&q=80",
   },
   {
     icon: Wrench,
@@ -67,6 +76,7 @@ const features = [
       "From minor repairs to major fixes, find skilled artisans you can trust.",
     color: "from-amber-400 to-orange-500",
     africanTerm: "Handyman (Oga)",
+    image: "/handyman.jpg",
   },
   {
     icon: Users,
@@ -75,6 +85,8 @@ const features = [
       "Planning an occasion? Get help with setup, serving, and cleanup.",
     color: "from-indigo-500 to-purple-600",
     africanTerm: "Party Support",
+    image:
+      "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=600&q=80",
   },
   {
     icon: Heart,
@@ -82,6 +94,7 @@ const features = [
     description: "Compassionate caregivers for your elderly loved ones.",
     color: "from-pink-500 to-rose-600",
     africanTerm: "Caregiver",
+    image: "/elderlycare.png",
   },
 ];
 
@@ -110,10 +123,8 @@ export function FeaturesSection() {
     } = await supabase.auth.getUser();
 
     if (user) {
-      // User is logged in, navigate to ai-agent with service pre-filled
       router.push(`/client/ai-agent?service=${encodeURIComponent(service)}`);
     } else {
-      // Not logged in, redirect to login page
       router.push("/auth/login");
     }
   };
@@ -168,19 +179,24 @@ export function FeaturesSection() {
                 variants={itemVariants}
                 transition={{ delay: index * 0.02 }}
               >
-                <Card className="h-full bg-white/80 backdrop-blur-sm border border-primary/10 transition-shadow duration-200 hover:shadow-lg group">
-                  <CardContent className="p-5 sm:p-6 flex flex-col justify-between h-full">
-                    <div className="flex flex-col items-center text-center">
-                      <div
-                        className={`p-3 sm:p-4 rounded-2xl bg-gradient-to-br ${feature.color} shadow-md mb-3`}
-                      >
-                        <Icon
-                          className="h-5 w-5 text-white"
-                          aria-hidden="true"
-                        />
-                      </div>
+                <Card className="h-full bg-white/80 backdrop-blur-sm border border-primary/10 transition-shadow duration-200 hover:shadow-lg group overflow-hidden">
+                  <div className="relative h-40 sm:h-48">
+                    <img
+                      src={feature.image}
+                      alt={feature.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                    <div
+                      className={`absolute top-3 right-3 p-3 rounded-xl bg-gradient-to-br ${feature.color} shadow-md`}
+                    >
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                  </div>
 
-                      <div className="mb-3">
+                  <CardContent className="p-5 sm:p-6 flex flex-col justify-between h-full">
+                    <div className="flex flex-col items-center text-center mt-3">
+                      <div className="mb-2">
                         <h3 className="font-semibold text-lg mb-1 text-foreground group-hover:text-primary transition-colors duration-150">
                           {feature.title}
                         </h3>

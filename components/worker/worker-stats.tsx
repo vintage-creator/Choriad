@@ -6,7 +6,7 @@ interface WorkerStatsProps {
   bookingsCount: number
   completedJobs: number
   upcomingBookings: number
-  monthlyEarnings: number
+  totalEarnings: number
 }
 
 const formatNGN = (amount: number) => {
@@ -21,13 +21,13 @@ export function WorkerStats({
   bookingsCount,
   completedJobs,
   upcomingBookings,
-  monthlyEarnings,
+  totalEarnings,
 }: WorkerStatsProps) {
   const stats = [
     {
       icon: TrendingUp,
-      label: "Monthly Earnings",
-      value: formatNGN(monthlyEarnings),
+      label: "Total Earnings",
+      value: formatNGN(totalEarnings),
       color: "text-emerald-600",
       bg: "bg-emerald-50",
     },

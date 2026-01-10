@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choriad Booking Flows</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      text-align: center;
+      color: #2d3748;
+      margin-bottom: 2rem;
+      font-size: 2rem;
+    }
+    .flows {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+    .flow {
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      background: #f7fafc;
+    }
+    .flow h2 {
+      color: #2d3748;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #667eea;
+    }
+    .flow.traditional h2 { border-color: #48bb78; }
+    .flow.ai-agent h2 { border-color: #667eea; }
+    .step {
+      background: white;
+      padding: 1rem;
+      margin: 0.75rem 0;
+      border-radius: 8px;
+      border-left: 4px solid #cbd5e0;
+      position: relative;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .step-number {
+      display: inline-block;
+      width: 28px;
+      height: 28px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 28px;
+      font-weight: bold;
+      margin-right: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .traditional .step-number { background: #48bb78; }
+    .step-title {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 0.25rem;
+    }
+    .step-detail {
+      font-size: 0.85rem;
+      color: #718096;
+      margin-top: 0.25rem;
+    }
+    .highlight {
+      background: #fef5e7;
+      border-left-color: #f59e0b;
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .highlight.critical {
+      background: #fef2f2;
+      border-left-color: #ef4444;
+    }
+    .tables {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #edf2f7;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .tables strong {
+      color: #667eea;
+    }
+    .arrow {
+      text-align: center;
+      color: #cbd5e0;
+      font-size: 1.5rem;
+      margin: 0.25rem 0;
+    }
+    .comparison {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+      border-radius: 12px;
+    }
+    .comparison h3 {
+      color: #2d3748;
+      margin-bottom: 1rem;
+    }
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .comparison-item {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .comparison-item.traditional { border-color: #48bb78; }
+    .comparison-item strong {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #2d3748;
+    }
+    @media (max-width: 1024px) {
+      .flows, .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 Choriad Booking Flows Comparison</h1>
+    
+    <div class="flows">
+      <!-- Traditional Flow -->
+      <div class="flow traditional">
+        <h2>📋 Traditional Flow (Job Posting)</h2>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">1</span>
+            Client Posts Job (Public)
+          </div>
+          <div class="step-detail">Creates job in <code>jobs</code> table, status: "open"</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">2</span>
+            Workers Apply
+          </div>
+          <div class="step-detail">Applications saved in <code>applications</code> table</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">3</span>
+            Client Reviews Applications
+          </div>
+          <div class="step-detail">Client browses /client/jobs/{id}/applications</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">4</span>
+            Client Hires Worker
+          </div>
+          <div class="step-detail">Calls <code>hireWorker()</code> action</div>
+        </div>
+        
+        <div class="highlight">
+          ⚠️ BOOKING CREATED HERE<br>
+          <small>Status: "pending_payment", payment_status: "pending"</small>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">5</span>
+            Client Pays
+          </div>
+          <div class="step-detail">Goes to /client/bookings/{booking_id}/pay</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">6</span>
+            Booking Confirmed
+          </div>
+          <div class="step-detail">Webhook updates: status: "confirmed", payment_status: "paid"</div>
+        </div>
+        
+        <div class="tables">
+          <strong>Tables Used:</strong><br>
+          • jobs (public)<br>
+          • applications<br>
+          • bookings
+        </div>
+      </div>
+      
+      <!-- AI Agent Flow -->
+      <div class="flow ai-agent">
+        <h2>🤖 AI Agent Flow (Direct Hire)</h2>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">1</span>
+            Client Uses AI Agent
+          </div>
+          <div class="step-detail">Tells AI what service they need</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">2</span>
+            AI Searches Workers
+          </div>
+          <div class="step-detail">Uses <code>searchWorkers</code> tool, shows top 3 matches</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">3</span>
+            Client Picks Worker
+          </div>
+          <div class="step-detail">Client approves one of the suggested workers</div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">4</span>
+            AI Creates Booking Request
+          </div>
+          <div class="step-detail">
+            Creates <code>booking_request</code> (status: "pending")<br>
+            + Hidden job (status: "pending_worker_approval")
+          </div>
+        </div>
+        
+        <div class="highlight critical">
+          ⚠️ NO BOOKING YET!<br>
+          <small>Only booking_request exists at this point</small>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">5</span>
+            Worker Responds
+          </div>
+          <div class="step-detail">
+            Accepts → booking_request.status = "accepted"<br>
+            Counters → booking_request.status = "countered"<br>
+            Rejects → booking_request.status = "rejected"
+          </div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">6</span>
+            Client Gets Notification
+          </div>
+          <div class="step-detail">
+            If accepted: "Please pay"<br>
+            If countered: Accept/reject counter-offer
+          </div>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">7</span>
+            Client Pays
+          </div>
+          <div class="step-detail">Goes to /client/booking-requests/{request_id}/pay</div>
+        </div>
+        
+        <div class="highlight">
+          ✅ BOOKING CREATED HERE (when payment starts)<br>
+          <small>Status: "pending_payment" → "confirmed" after payment success</small>
+        </div>
+        
+        <div class="arrow">↓</div>
+        
+        <div class="step">
+          <div class="step-title">
+            <span class="step-number">8</span>
+            Payment Success
+          </div>
+          <div class="step-detail">
+            Booking confirmed, job status: "assigned", worker notified
+          </div>
+        </div>
+        
+        <div class="tables">
+          <strong>Tables Used:</strong><br>
+          • booking_requests<br>
+          • bookings<br>
+          • jobs (hidden)
+        </div>
+      </div>
+    </div>
+    
+    <!-- Key Differences -->
+    <div class="comparison">
+      <h3>🔑 Key Differences</h3>
+      <div class="comparison-grid">
+        <div class="comparison-item traditional">
+          <strong>Traditional Flow:</strong>
+          <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+            <li>Booking exists BEFORE payment</li>
+            <li>Payment updates existing booking</li>
+            <li>Job is publicly posted</li>
+            <li>Multiple workers can apply</li>
+          </ul>
+        </div>
+        
+        <div class="comparison-item">
+          <strong>AI Agent Flow:</strong>
+          <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+            <li>Booking created DURING payment</li>
+            <li>Payment creates the booking</li>
+            <li>Job is hidden/internal</li>
+            <li>Direct 1-on-1 negotiation</li>
+          </ul>
+        </div>
+        
+        <div class="comparison-item traditional">
+          <strong>When booking exists:</strong>
+          <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+            <li>After client clicks "Hire Worker"</li>
+            <li>Before payment happens</li>
+          </ul>
+        </div>
+        
+        <div class="comparison-item">
+          <strong>When booking exists:</strong>
+          <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+            <li>When client initiates payment</li>
+            <li>After worker accepts</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

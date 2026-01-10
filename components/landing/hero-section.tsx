@@ -258,37 +258,66 @@ export function HeroSection() {
                 </motion.div>
               ))}
             </motion.div>
+
+            {/* Trusted by logos */}
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <p className="text-sm text-gray-500 mb-4">Trusted by local businesses</p>
+              <div className="flex items-center gap-6 opacity-60">
+                <div className="text-xl font-bold">SHOPRITE</div>
+                <div className="text-xl font-bold">JUMIA</div>
+                <div className="text-xl font-bold">KONGA</div>
+              </div>
+            </div>
           </motion.div>
 
-          {/* Right column: laptop mockup thumbnail */}
+          {/* Right column: Hero Image Collage (original look restored) */}
           <motion.div
             className="relative mx-auto w-full max-w-xl"
             initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            <div
-              className="relative rounded-3xl overflow-hidden shadow-2xl border border-primary/20 bg-white cursor-pointer"
-              role="button"
-              aria-label="Open demo"
-              onClick={() => handleOpenDemoModal()}
-            >
-              {/* Laptop frame */}
-              <div className="aspect-[16/10] relative">
-                <Image src="/see-oga.png" alt="Laptop mockup" fill style={{ objectFit: "cover" }} />
-
-                {/* subtle overlay CTA */}
-                <div className="absolute bottom-4 left-4">
-                  <div className="inline-flex items-center gap-2 bg-white/90 text-primary px-3 py-2 rounded-full shadow pointer-events-none">
-                    <Sparkles className="h-4 w-4" />
-                    <span className="text-sm font-medium">See Oga at work</span>
+            <div className="relative">
+              {/* Professional artisan at work */}
+              <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+                <img
+                  src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1200&q=80"
+                  alt="Professional artisan at work"
+                  className="w-full h-[550px] object-cover"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6">
+                  <div className="flex items-center gap-3 text-white">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="text-sm opacity-90">Expert Plumber • 4.9★ • </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="absolute -top-4 -right-4 w-24 h-24 bg-primary/10 rounded-2xl blur-xl hidden sm:block" />
-            <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-emerald-500/10 rounded-2xl blur-xl hidden sm:block" />
+              {/* Small floating cards with additional context */}
+              <div className="absolute -top-4 -right-4 w-48 bg-white rounded-2xl shadow-xl p-4 border border-gray-100">
+                <img
+                  src="https://images.unsplash.com/photo-1556910633-5099dc3971e8?w=800&q=80"
+                  alt="Home cleaning service"
+                  className="w-full h-24 object-cover rounded-lg mb-2"
+                />
+                <div className="text-sm font-medium">Home Cleaning</div>
+                <div className="text-xs text-gray-500">From ₦25,000</div>
+              </div>
+
+              <div className="absolute -bottom-4 -left-4 w-48 bg-white rounded-2xl shadow-xl p-4 border border-gray-100">
+                <img
+                  src="https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800&q=80"
+                  alt="Market shopping"
+                  className="w-full h-24 object-cover rounded-lg mb-2"
+                />
+                <div className="text-sm font-medium">Market Runs</div>
+                <div className="text-xs text-gray-500">From ₦10,000</div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>

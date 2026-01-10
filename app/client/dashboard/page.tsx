@@ -1,9 +1,10 @@
-// app/client/dashboard/page.tsx 
+// app/client/dashboard/page.tsx
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHeader } from "@/components/client/dashboard-header";
 import { JobsList } from "@/components/client/jobs-list";
 import { AIAgentCard } from "@/components/client/ai-agent-card";
+import { BookingNotifications } from "@/components/client/booking-notifications";
 import {
   Card,
   CardContent,
@@ -12,7 +13,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, TrendingUp, Users, Clock, Calendar, AlertCircle, CreditCard, Sparkles } from "lucide-react";
+import {
+  Plus,
+  TrendingUp,
+  Users,
+  Clock,
+  Calendar,
+  AlertCircle,
+  CreditCard,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { Footer } from "@/components/landing/footer";
 import { Toaster } from "react-hot-toast";
@@ -38,10 +48,12 @@ export default async function ClientDashboardPage() {
   // Get jobs with applications count
   const { data: jobs } = await supabase
     .from("jobs")
-    .select(`
+    .select(
+      `
       *,
       applications(count)
-    `)
+    `
+    )
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -51,44 +63,64 @@ export default async function ClientDashboardPage() {
     .select("job_id, payment_status, status")
     .eq("client_id", user.id);
 
-  // FIXED: Track pending payment tasks
-  const pendingPaymentJobs = jobs?.filter((job) => {
-    // Find booking for this job
-    const jobBooking = bookings?.find(b => b.job_id === job.id);
-    // Job is "pending payment" if it's assigned but booking payment is pending
-    return job.status === "assigned" && jobBooking?.payment_status === "pending";
-  }).length || 0;
+  // Check for pending booking requests/notifications
+  const { data: pendingBookingNotifications, error: notifError } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("user_id", user.id)
+    .in("type", ["booking_confirmed", "booking_counter_offer", "booking_rejected"])
+    .eq("read", false);
 
-  // Use the server action to get pending applications count
+  console.log("Notification query error:", notifError);
+  console.log("Found notifications:", pendingBookingNotifications);
+
+  const pendingBookingActions = pendingBookingNotifications?.length || 0;
+
+  // Track pending payment tasks
+  const pendingPaymentJobs =
+    jobs?.filter((job) => {
+      const jobBooking = bookings?.find((b) => b.job_id === job.id);
+      return (
+        job.status === "assigned" && jobBooking?.payment_status === "pending"
+      );
+    }).length || 0;
+
   const pendingResult = await checkForPendingApplications(user.id);
-  const pendingApplications = (pendingResult && pendingResult.pendingApplications) ? pendingResult.pendingApplications : 0;
+  const pendingApplications =
+    pendingResult && pendingResult.pendingApplications
+      ? pendingResult.pendingApplications
+      : 0;
 
-  const completedJobs = jobs?.filter((job) => job.status === "completed").length || 0;
+  const completedJobs =
+    jobs?.filter((job) => job.status === "completed").length || 0;
   const openJobs = jobs?.filter((job) => job.status === "open").length || 0;
-  
-  // Active jobs = assigned/in_progress WITH payment completed
-  const activeJobs = jobs?.filter((job) => {
-    const jobBooking = bookings?.find(b => b.job_id === job.id);
-    return (job.status === "assigned" || job.status === "in_progress") && 
-           jobBooking?.payment_status === "paid";
-  }).length || 0;
 
-  // Count active bookings (paid and confirmed/in progress)
-  const activeBookingsCount = bookings?.filter(b => 
-    b.payment_status === "paid" && 
-    (b.status === "confirmed" || b.status === "in_progress")
-  ).length || 0;
+  const activeJobs =
+    jobs?.filter((job) => {
+      const jobBooking = bookings?.find((b) => b.job_id === job.id);
+      return (
+        (job.status === "assigned" || job.status === "in_progress") &&
+        jobBooking?.payment_status === "paid"
+      );
+    }).length || 0;
+
+  const activeBookingsCount =
+    bookings?.filter(
+      (b) =>
+        b.payment_status === "paid" &&
+        (b.status === "confirmed" || b.status === "in_progress")
+    ).length || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
-      <Toaster 
+      <Toaster
         position="top-right"
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#fff',
-            color: '#333',
-            border: '1px solid #e5e7eb',
+            background: "#fff",
+            color: "#333",
+            border: "1px solid #e5e7eb",
           },
         }}
       />
@@ -100,11 +132,18 @@ export default async function ClientDashboardPage() {
             Welcome back, {profile?.full_name ?? "there"}! 👋
           </h1>
           <p className="text-lg text-muted-foreground">
-            Manage your tasks, track bookings, and let AI find the perfect providers.
+            Manage your tasks, track bookings, and let AI find the perfect
+            providers.
           </p>
         </section>
 
-        {/* FIXED: Updated stats with pending payment tracking */}
+        {/* Booking Action Notifications */}
+        {pendingBookingActions > 0 && (
+          <div className="sticky top-20 z-10 mb-6">
+            <BookingNotifications userId={user.id} />
+          </div>
+        )}
+
         <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           {[
             {
@@ -158,7 +197,9 @@ export default async function ClientDashboardPage() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className={`text-sm font-medium mb-1 ${item.labelColor}`}>
+                      <p
+                        className={`text-sm font-medium mb-1 ${item.labelColor}`}
+                      >
                         {item.label}
                       </p>
                       <p className={`text-3xl font-bold ${item.valueColor}`}>
@@ -170,7 +211,9 @@ export default async function ClientDashboardPage() {
                         </p>
                       )}
                     </div>
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${item.bg}`}>
+                    <div
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${item.bg}`}
+                    >
                       {item.icon}
                     </div>
                   </div>
@@ -180,21 +223,27 @@ export default async function ClientDashboardPage() {
           ))}
         </section>
 
-        {/* FIXED: Alert for pending payments */}
+        {/* Alert for pending payments */}
         {pendingPaymentJobs > 0 && (
           <Card className="border-2 border-amber-200 bg-amber-50">
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
-                  <p className="font-semibold text-amber-900">Payment Required</p>
-                  <p className="text-sm text-amber-700 mt-1">
-                    You have {pendingPaymentJobs} task{pendingPaymentJobs > 1 ? "s" : ""} awaiting payment to secure your booking.
+                  <p className="font-semibold text-amber-900">
+                    Payment Required
                   </p>
-                  <Button asChild size="sm" className="mt-3 bg-amber-600 hover:bg-amber-700">
-                    <Link href="/client/bookings">
-                      Complete Payment →
-                    </Link>
+                  <p className="text-sm text-amber-700 mt-1">
+                    You have {pendingPaymentJobs} task
+                    {pendingPaymentJobs > 1 ? "s" : ""} awaiting payment to
+                    secure your booking.
+                  </p>
+                  <Button
+                    asChild
+                    size="sm"
+                    className="mt-3 bg-amber-600 hover:bg-amber-700"
+                  >
+                    <Link href="/client/bookings">Complete Payment →</Link>
                   </Button>
                 </div>
               </div>
@@ -204,10 +253,8 @@ export default async function ClientDashboardPage() {
 
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {/* FIXED: Limit to 5 jobs + See More button */}
             <JobsList jobs={jobs ?? []} limit={5} />
 
-            {/* Quick Stats Card */}
             <Card className="border border-border/30 shadow-md rounded-2xl bg-white/95 backdrop-blur-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold">
@@ -221,13 +268,21 @@ export default async function ClientDashboardPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Total Applications</span>
+                      <span className="text-sm text-muted-foreground">
+                        Total Applications
+                      </span>
                       <span className="font-semibold">
-                        {jobs?.reduce((acc, job) => acc + (job.applications?.[0]?.count || 0), 0) || 0}
+                        {jobs?.reduce(
+                          (acc, job) =>
+                            acc + (job.applications?.[0]?.count || 0),
+                          0
+                        ) || 0}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Pending Payment</span>
+                      <span className="text-sm text-muted-foreground">
+                        Pending Payment
+                      </span>
                       <span className="font-semibold text-amber-600">
                         {pendingPaymentJobs}
                       </span>
@@ -235,13 +290,22 @@ export default async function ClientDashboardPage() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Active Bookings</span>
-                      <span className="font-semibold">{activeBookingsCount}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Active Bookings
+                      </span>
+                      <span className="font-semibold">
+                        {activeBookingsCount}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Completion Rate</span>
+                      <span className="text-sm text-muted-foreground">
+                        Completion Rate
+                      </span>
                       <span className="font-semibold">
-                        {jobs?.length ? Math.round((completedJobs / jobs.length) * 100) : 0}%
+                        {jobs?.length
+                          ? Math.round((completedJobs / jobs.length) * 100)
+                          : 0}
+                        %
                       </span>
                     </div>
                   </div>
@@ -289,12 +353,16 @@ export default async function ClientDashboardPage() {
                     asChild
                   >
                     <Link href={item.href} className="flex items-start gap-3">
-                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.bg} flex-shrink-0`}>
+                      <span
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center ${item.bg} flex-shrink-0`}
+                      >
                         {item.icon}
                       </span>
                       <div className="text-left flex-1">
                         <span className="font-medium block">{item.text}</span>
-                        <span className="text-xs text-muted-foreground">{item.description}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.description}
+                        </span>
                       </div>
                       {item.badge && (
                         <span className="absolute -top-1 -right-1 w-6 h-6 bg-amber-500 text-white text-xs font-bold rounded-full flex items-center justify-center">

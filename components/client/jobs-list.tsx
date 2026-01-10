@@ -74,7 +74,7 @@ export function JobsList({ jobs, limit }: JobsListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showAll, setShowAll] = useState(false); // NEW: Toggle for showing all jobs
+  const [showAll, setShowAll] = useState(false);
 
   const handleDeleteJob = async (jobId: string) => {
     setIsDeleting(true);
@@ -147,7 +147,7 @@ export function JobsList({ jobs, limit }: JobsListProps) {
       <div className="grid gap-4">
         {displayedJobs.map((job) => {
           const applicationCount = job.applications?.[0]?.count || 0;
-          
+
           // Check if this job has pending payment
           const isPendingPayment = job.status === "assigned"; // Will be enhanced with booking check
 
@@ -167,7 +167,10 @@ export function JobsList({ jobs, limit }: JobsListProps) {
                         {job.status.replace("_", " ")}
                       </Badge>
                       {isPendingPayment && (
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                        <Badge
+                          variant="outline"
+                          className="bg-amber-50 text-amber-700 border-amber-300"
+                        >
                           <CreditCard className="w-3 h-3 mr-1" />
                           Payment Pending
                         </Badge>
@@ -321,7 +324,11 @@ export function JobsList({ jobs, limit }: JobsListProps) {
                   {job.status === "assigned" && (
                     <>
                       {isPendingPayment && (
-                        <Button size="sm" asChild className="bg-amber-600 hover:bg-amber-700">
+                        <Button
+                          size="sm"
+                          asChild
+                          className="bg-amber-600 hover:bg-amber-700"
+                        >
                           <Link href="/client/bookings">
                             <CreditCard className="mr-2 h-4 w-4" />
                             Complete Payment
@@ -367,7 +374,8 @@ export function JobsList({ jobs, limit }: JobsListProps) {
               </>
             ) : (
               <>
-                Show {jobs.length - displayLimit} More Task{jobs.length - displayLimit !== 1 ? "s" : ""}
+                Show {jobs.length - displayLimit} More Task
+                {jobs.length - displayLimit !== 1 ? "s" : ""}
                 <ChevronDown className="ml-2 h-4 w-4" />
               </>
             )}
@@ -377,7 +385,11 @@ export function JobsList({ jobs, limit }: JobsListProps) {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent
+          className="fixed left-1/2 top-1/2 z-50 
+             -translate-x-1/2 -translate-y-1/2 
+             bg-white p-6 shadow-lg"
+        >
           <DialogHeader>
             <DialogTitle>Delete Task</DialogTitle>
             <DialogDescription>
@@ -391,6 +403,7 @@ export function JobsList({ jobs, limit }: JobsListProps) {
               variant="outline"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={isDeleting}
+              className="cursor-pointer"
             >
               Cancel
             </Button>
@@ -398,6 +411,7 @@ export function JobsList({ jobs, limit }: JobsListProps) {
               variant="destructive"
               onClick={() => jobToDelete && handleDeleteJob(jobToDelete)}
               disabled={isDeleting}
+              className="cursor-pointer"
             >
               {isDeleting ? "Deleting..." : "Delete Task"}
             </Button>

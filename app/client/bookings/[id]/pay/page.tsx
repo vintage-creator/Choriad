@@ -20,6 +20,7 @@ import {
   Smartphone,
   Building2,
 } from "lucide-react";
+import { Footer } from "@/components/landing/footer";
 import toast from "react-hot-toast";
 import { initializePayment } from "@/app/actions/flutterwave";
 import Link from "next/link";
@@ -414,6 +415,9 @@ export default function BookingPaymentPage() {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
+
+

@@ -19,7 +19,9 @@ function toNum(v: any): number {
  * Helper: normalize location for flexible matching
  */
 function normalizeLocation(loc: string): string {
-  return String(loc || "").toLowerCase().trim();
+  return String(loc || "")
+    .toLowerCase()
+    .trim();
 }
 
 /**
@@ -28,40 +30,50 @@ function normalizeLocation(loc: string): string {
 function normalizeSkills(skills: string | string[]): string[] {
   // Handle case where Gemini passes a string instead of array
   let skillsArray: string[];
-  
-  if (typeof skills === 'string') {
+
+  if (typeof skills === "string") {
     skillsArray = [skills];
   } else if (Array.isArray(skills)) {
     skillsArray = skills;
   } else {
-    console.warn('Invalid skills type:', typeof skills);
+    console.warn("Invalid skills type:", typeof skills);
     return [];
   }
 
   const normalized: string[] = [];
   for (const skill of skillsArray) {
-    const s = String(skill || "").toLowerCase().trim();
+    const s = String(skill || "")
+      .toLowerCase()
+      .trim();
     if (!s) continue;
-    
+
     // Add synonyms for common services
-    if (s.includes("personal shopper") || s.includes("grocery") || s.includes("shopping")) {
-      normalized.push("personal shopper", "grocery shopping", "shopping assistant", "errand runner");
+    if (
+      s.includes("personal shopper") ||
+      s.includes("grocery") ||
+      s.includes("shopping")
+    ) {
+      normalized.push(
+        "personal shopper",
+        "grocery shopping",
+        "shopping assistant",
+        "errand runner"
+      );
     } else {
       normalized.push(s);
     }
   }
-  return [...new Set(normalized)]; // Remove duplicates
+  return [...new Set(normalized)];
 }
 
 /* ---------------------------
    ENHANCED TOOLS with Better Error Handling
    --------------------------- */
 
-// Define tool schemas manually without AI SDK
 const searchWorkersSchema = z.object({
   skills: z.union([z.array(z.string()), z.string()]).optional(),
   skill: z.string().optional(),
-  service: z.string().optional(), // Gemini sometimes uses this
+  service: z.string().optional(),
   location: z.string().describe("Job location"),
   maxBudget: z.number().optional().describe("Maximum budget in Naira"),
   budget_max: z.number().optional(), // Alternative parameter name
@@ -75,7 +87,7 @@ const negotiatePriceSchema = z.object({
   jobComplexity: z.enum(["simple", "moderate", "complex"]).optional(),
 });
 
-const createBookingWithPaymentSchema = z.object({
+const createBookingRequestSchema = z.object({
   workerId: z.string(),
   clientId: z.string(),
   jobTitle: z.string(),
@@ -83,7 +95,13 @@ const createBookingWithPaymentSchema = z.object({
   category: z.string(),
   location: z.string(),
   scheduledDate: z.string(),
-  agreedAmount: z.number().describe("Final agreed amount in Naira"),
+  proposedAmount: z.number().describe("Client's proposed budget"),
+  workerRate: z
+    .number()
+    .optional()
+    .describe("Worker's hourly rate (0 if flexible)"),
+  negotiationNote: z.string().optional(),
+  urgency: z.enum(["today", "this_week", "flexible"]).optional(),
 });
 
 const checkWorkerAvailabilitySchema = z.object({
@@ -91,31 +109,35 @@ const checkWorkerAvailabilitySchema = z.object({
   date: z.string(),
 });
 
-// Define the tools without AI SDK
+const acceptCounterOfferSchema = z.object({
+  bookingRequestId: z.string(),
+  clientId: z.string(),
+});
+
 const tools = {
   searchWorkers: {
-    description: "Search for available workers and rank them by match quality (top 3)",
+    description:
+      "Search for available workers and rank them by match quality (top 3)",
     schema: searchWorkersSchema,
     execute: async (input: any) => {
       const supabase = await createClient();
 
       try {
-        // FIXED: Handle multiple parameter names for skills
         let skillsParam = input.skills || input.skill || input.service;
-        
+
         // If skills is a string, convert it to array
-        if (typeof skillsParam === 'string') {
+        if (typeof skillsParam === "string") {
           skillsParam = [skillsParam];
         }
-        
+
         // Ensure skills is an array
         if (!Array.isArray(skillsParam)) {
           skillsParam = [];
         }
-        
+
         // Handle budget parameter variations
         const maxBudget = input.maxBudget || input.budget_max;
-        
+
         // Normalize location for flexible matching
         const normalizedLocation = normalizeLocation(input.location);
         const normalizedSkills = normalizeSkills(skillsParam || []);
@@ -123,28 +145,31 @@ const tools = {
         // Query workers - check BOTH location AND location_city fields
         const { data: workers, error } = await supabase
           .from("workers")
-          .select(`
+          .select(
+            `
             *,
             profiles!workers_id_fkey(full_name, avatar_url, email)
-          `)
+          `
+          )
           .eq("availability_status", "available")
           .order("rating", { ascending: false })
           .limit(50); // Get more workers for better matching
 
         if (error) {
           console.error("Worker query error:", error);
-          return { 
-            success: false, 
-            workers: [], 
-            message: `Database error: ${error.message}` 
+          return {
+            success: false,
+            workers: [],
+            message: `Database error: ${error.message}`,
           };
         }
 
         if (!workers || workers.length === 0) {
-          return { 
-            success: false, 
-            workers: [], 
-            message: "No available workers found in the system. Please try again later." 
+          return {
+            success: false,
+            workers: [],
+            message:
+              "No available workers found in the system. Please try again later.",
           };
         }
 
@@ -154,24 +179,28 @@ const tools = {
             let matchScore = 0;
 
             // Skill match (40 points) - More flexible matching
-            const workerSkills: string[] = Array.isArray(worker.skills) 
-              ? worker.skills.map((s: string) => String(s || "").toLowerCase().trim())
+            const workerSkills: string[] = Array.isArray(worker.skills)
+              ? worker.skills.map((s: string) =>
+                  String(s || "")
+                    .toLowerCase()
+                    .trim()
+                )
               : [];
-            
+
             const requestedSkills = normalizedSkills;
-            
+
             if (requestedSkills.length > 0 && workerSkills.length > 0) {
               let skillMatchCount = 0;
-              
+
               for (const reqSkill of requestedSkills) {
                 const hasMatch = workerSkills.some((wSkill: string) => {
                   // Fuzzy matching - check if either contains the other
                   return wSkill.includes(reqSkill) || reqSkill.includes(wSkill);
                 });
-                
+
                 if (hasMatch) skillMatchCount++;
               }
-              
+
               matchScore += (skillMatchCount / requestedSkills.length) * 40;
             }
 
@@ -179,30 +208,37 @@ const tools = {
             const workerCity = normalizeLocation(worker.location_city || "");
             const workerArea = normalizeLocation(worker.location_area || "");
             const workerFullLocation = `${workerArea} ${workerCity}`.trim();
-            
+
             if (workerArea && normalizedLocation.includes(workerArea)) {
               matchScore += 30;
             } else if (workerCity && normalizedLocation.includes(workerCity)) {
               matchScore += 15;
-            } else if (workerFullLocation && normalizedLocation.includes(workerFullLocation)) {
+            } else if (
+              workerFullLocation &&
+              normalizedLocation.includes(workerFullLocation)
+            ) {
               matchScore += 30;
             } else if (workerArea && workerCity) {
-              const locationKeywords = normalizedLocation.split(/[\s,]+/).filter(Boolean);
+              const locationKeywords = normalizedLocation
+                .split(/[\s,]+/)
+                .filter(Boolean);
               const workerKeywords = [workerArea, workerCity];
-              
-              const overlap = locationKeywords.filter(kw => 
-                workerKeywords.some(wk => wk.includes(kw) || kw.includes(wk))
+
+              const overlap = locationKeywords.filter((kw) =>
+                workerKeywords.some((wk) => wk.includes(kw) || kw.includes(wk))
               );
-              
+
               if (overlap.length > 0) {
                 matchScore += Math.min(overlap.length * 15, 25);
               }
             }
 
             // Budget fit (15 points)
-            const hourlyRate = toNum(worker.hourly_rate_ngn || worker.hourly_rate);
+            const hourlyRate = toNum(
+              worker.hourly_rate_ngn || worker.hourly_rate
+            );
             const maxBudgetNum = toNum(maxBudget);
-            
+
             if (maxBudgetNum > 0 && hourlyRate > 0) {
               if (hourlyRate <= maxBudgetNum) {
                 matchScore += 15;
@@ -226,8 +262,8 @@ const tools = {
             const completedJobsNum = toNum(worker.completed_jobs);
             matchScore += Math.min(completedJobsNum / 10, 1) * 5;
 
-            const profile = Array.isArray(worker.profiles) 
-              ? worker.profiles[0] 
+            const profile = Array.isArray(worker.profiles)
+              ? worker.profiles[0]
               : worker.profiles;
 
             return {
@@ -235,17 +271,20 @@ const tools = {
               user_id: worker.user_id || worker.id,
               name: profile?.full_name || "Worker",
               bio: worker.bio || null,
-              profilePicture: Array.isArray(worker.profile_pictures_urls) && worker.profile_pictures_urls.length > 0
-                ? worker.profile_pictures_urls[0]
-                : profile?.avatar_url || null,
+              profilePicture:
+                Array.isArray(worker.profile_pictures_urls) &&
+                worker.profile_pictures_urls.length > 0
+                  ? worker.profile_pictures_urls[0]
+                  : profile?.avatar_url || null,
               skills: workerSkills,
               rating: ratingNum || 0,
               totalReviews: toNum(worker.total_reviews) || 0,
               hourlyRate: hourlyRate || 0,
               completedJobs: completedJobsNum || 0,
-              location: workerArea && workerCity 
-                ? `${workerArea}, ${workerCity}` 
-                : (workerArea || workerCity || null),
+              location:
+                workerArea && workerCity
+                  ? `${workerArea}, ${workerCity}`
+                  : workerArea || workerCity || null,
               locationArea: worker.location_area || null,
               locationCity: worker.location_city || null,
               verified: worker.verification_status === "verified",
@@ -254,7 +293,7 @@ const tools = {
               isNewWorker: ratingNum === 0 && completedJobsNum === 0,
             };
           })
-          .filter(w => w.matchScore > 5)
+          .filter((w) => w.matchScore > 5)
           .sort((a, b) => b.matchScore - a.matchScore)
           .slice(0, 3);
 
@@ -269,21 +308,26 @@ const tools = {
         return {
           success: true,
           workers: matchedWorkers,
-          message: `Found ${matchedWorkers.length} top match${matchedWorkers.length > 1 ? 'es' : ''} for your requirements`,
+          message: `Found ${matchedWorkers.length} top match${
+            matchedWorkers.length > 1 ? "es" : ""
+          } for your requirements`,
         };
       } catch (error: any) {
         console.error("Search workers error:", error);
         return {
           success: false,
           workers: [],
-          message: `Error searching for workers: ${error?.message || "Unknown error"}`,
+          message: `Error searching for workers: ${
+            error?.message || "Unknown error"
+          }`,
         };
       }
-    }
+    },
   },
-  
+
   negotiatePrice: {
-    description: "Negotiate price with a worker based on client budget and worker rate. If worker has no rate (0), use client budget.",
+    description:
+      "Negotiate price with a worker based on client budget and worker rate. If worker has no rate (0), use client budget.",
     schema: negotiatePriceSchema,
     execute: async (input: any) => {
       const wRate = toNum(input.workerRate);
@@ -336,37 +380,59 @@ const tools = {
           ...negotiationResult,
           negotiated: false,
           agreedPrice: proposedPrice,
-          message: `Worker's rate is ${Math.round(differencePercent)}% higher. Proposed: ₦${proposedPrice.toLocaleString()}.`,
+          message: `Worker's rate is ${Math.round(
+            differencePercent
+          )}% higher. Proposed: ₦${proposedPrice.toLocaleString()}.`,
           recommendation: "NEEDS_APPROVAL",
         };
       } else {
         negotiationResult = {
           ...negotiationResult,
           negotiated: false,
-          message: `Worker's rate exceeds budget by ${Math.round(differencePercent)}%. Consider other workers.`,
+          message: `Worker's rate exceeds budget by ${Math.round(
+            differencePercent
+          )}%. Consider other workers.`,
           recommendation: "SUGGEST_ALTERNATIVES",
         };
       }
 
       return negotiationResult;
-    }
+    },
   },
-  
-  createBookingWithPayment: {
-    description: "Create booking and initiate payment. Use the EXACT worker ID from search results.",
-    schema: createBookingWithPaymentSchema,
+
+  createBookingRequest: {
+    description:
+      "Send a booking request to a worker. Worker must approve before booking is confirmed.",
+    schema: createBookingRequestSchema,
     execute: async (input: any) => {
       const supabase = await createClient();
 
       try {
-        const agreedAmountNum = toNum(input.agreedAmount);
+        const proposedAmountNum = toNum(input.proposedAmount);
+        const workerRateNum = toNum(input.workerRate);
+        const urgency = input.urgency || "flexible";
 
-        // Parse location (could be "ajah, lagos" or just "ajah")
-        const locationParts = String(input.location).split(",").map(s => s.trim());
-        const location_area = locationParts.length > 1 ? locationParts[0] : locationParts[0];
-        const location_city = locationParts.length > 1 ? locationParts[1] : "Lagos";
+        // Parse location
+        const locationParts = String(input.location)
+          .split(",")
+          .map((s) => s.trim());
+        const location_area =
+          locationParts.length > 1 ? locationParts[0] : locationParts[0];
+        const location_city =
+          locationParts.length > 1 ? locationParts[1] : "Lagos";
 
-        // 1. Create job
+        let expiryHours = 24; // Default
+        if (urgency === "today") {
+          expiryHours = 6; // 6 hours for urgent jobs
+        } else if (urgency === "this_week") {
+          expiryHours = 12; // 12 hours for this week
+        }
+
+        const expiresAt = new Date(
+          Date.now() + expiryHours * 60 * 60 * 1000
+        ).toISOString();
+
+        // 1. Create job with VALID status
         const { data: job, error: jobError } = await supabase
           .from("jobs")
           .insert({
@@ -376,12 +442,11 @@ const tools = {
             category: input.category || "errands_delivery",
             location_city: location_city,
             location_area: location_area,
-            budget_min_ngn: agreedAmountNum,
-            budget_max_ngn: agreedAmountNum,
+            budget_min_ngn: proposedAmountNum,
+            budget_max_ngn: proposedAmountNum,
             status: "assigned",
             assigned_worker_id: input.workerId,
-            final_amount_ngn: agreedAmountNum,
-            urgency: "flexible",
+            urgency: urgency,
           })
           .select()
           .single();
@@ -390,74 +455,183 @@ const tools = {
           console.error("Job creation error:", jobError);
           return {
             success: false,
-            message: `Failed to create job: ${jobError?.message || "Unknown error"}`,
+            message: `Failed to create booking request: ${
+              jobError?.message || "Unknown error"
+            }`,
           };
         }
 
-        // 2. Calculate amounts (15% commission)
-        const commission = Math.round(agreedAmountNum * 0.15);
-        const workerAmount = agreedAmountNum - commission;
-
-        // 3. Create booking
-        const { data: booking, error: bookingError } = await supabase
-          .from("bookings")
+        // 2. Create booking request
+        const { data: bookingRequest, error: bookingError } = await supabase
+          .from("booking_requests")
           .insert({
             job_id: job.id,
             client_id: input.clientId,
             worker_id: input.workerId,
             scheduled_date: input.scheduledDate,
-            amount_ngn: agreedAmountNum,
-            commission_ngn: commission,
-            worker_amount_ngn: workerAmount,
-            status: "pending_payment",
-            payment_status: "pending",
+            proposed_amount_ngn: proposedAmountNum,
+            worker_rate_ngn: workerRateNum,
+            negotiation_note: input.negotiationNote || null,
+            status: "pending",
+            expires_at: expiresAt,
+            metadata: {
+              auto_continue: true,
+              job_title: input.jobTitle,
+              client_id: input.clientId,
+            },
           })
           .select()
           .single();
 
-        if (bookingError || !booking) {
-          console.error("Booking creation error:", bookingError);
+        if (bookingError || !bookingRequest) {
+          console.error("Booking request creation error:", bookingError);
           return {
             success: false,
-            message: `Failed to create booking: ${bookingError?.message || "Unknown error"}`,
+            message: `Failed to create booking request: ${
+              bookingError?.message || "Unknown error"
+            }`,
           };
         }
 
-        // 4. Create notification
+        // 3. Create notification for worker with urgency flag
         try {
           await supabase.from("notifications").insert({
             user_id: input.workerId,
-            type: "booking_created",
-            title: "New Booking - Payment Pending",
-            message: `You've been hired for "${input.jobTitle}". Awaiting client payment.`,
-            data: { booking_id: booking.id, job_id: job.id },
+            type: "booking_request",
+            title:
+              urgency === "today"
+                ? "🔥 URGENT Booking Request"
+                : "New Booking Request",
+            message: `${
+              input.jobTitle
+            } - Client offers ₦${proposedAmountNum.toLocaleString()}. ${
+              workerRateNum > 0 && workerRateNum !== proposedAmountNum
+                ? `Your rate: ₦${workerRateNum.toLocaleString()}.`
+                : ""
+            } ${
+              urgency === "today"
+                ? "Respond within 6 hours!"
+                : "Review and respond."
+            }`,
+            data: {
+              booking_request_id: bookingRequest.id,
+              job_id: job.id,
+              proposed_amount: proposedAmountNum,
+              worker_rate: workerRateNum,
+              urgency: urgency,
+              expires_in_hours: expiryHours,
+            },
             read: false,
           });
         } catch (e) {
           console.warn("Failed to create notification:", e);
         }
 
+        const expiryMessage =
+          urgency === "today"
+            ? "⚡ Urgent: Worker has 6 hours to respond."
+            : urgency === "this_week"
+            ? "Worker has 12 hours to respond."
+            : "Worker has 24 hours to respond.";
+
         return {
           success: true,
-          bookingId: booking.id,
+          bookingRequestId: bookingRequest.id,
           jobId: job.id,
-          agreedAmount: agreedAmountNum,
-          commission: commission,
-          workerPayout: workerAmount,
-          message: `Booking created! Total: ₦${agreedAmountNum.toLocaleString()}. Worker gets ₦${workerAmount.toLocaleString()} after 15% fee.`,
-          nextStep: "INITIATE_PAYMENT",
-          paymentUrl: `/client/bookings/${booking.id}/pay`,
+          proposedAmount: proposedAmountNum,
+          workerRate: workerRateNum,
+          expiresInHours: expiryHours,
+          message: `Booking request sent! ${expiryMessage} ${
+            workerRateNum > 0 && workerRateNum !== proposedAmountNum
+              ? "They may accept, counter, or negotiate the price."
+              : "Awaiting their confirmation."
+          }`,
+          nextStep: "AWAITING_WORKER_RESPONSE",
+          expiresAt: expiresAt,
         };
       } catch (error: any) {
-        console.error("Booking creation exception:", error);
+        console.error("Booking request creation exception:", error);
         return {
           success: false,
           message: `Error: ${error?.message ?? String(error)}`,
         };
       }
-    }
+    },
   },
-  
+
+  acceptCounterOffer: {
+    description:
+      "Accept a worker's counter-offer and create booking for payment",
+    schema: acceptCounterOfferSchema,
+    execute: async (input: any) => {
+      const supabase = await createClient();
+
+      try {
+        // Get booking request details
+        const { data: request, error: fetchError } = await supabase
+          .from("booking_requests")
+          .select("*, jobs(*)")
+          .eq("id", input.bookingRequestId)
+          .eq("client_id", input.clientId)
+          .single();
+
+        if (fetchError || !request) {
+          return {
+            success: false,
+            message: "Booking request not found",
+          };
+        }
+
+        if (request.status !== "countered") {
+          return {
+            success: false,
+            message: "No counter-offer to accept",
+          };
+        }
+
+        const counterAmount = request.counter_offer_ngn;
+
+        // Update booking request status
+        await supabase
+          .from("booking_requests")
+          .update({
+            status: "client_accepted",
+            proposed_amount_ngn: counterAmount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", input.bookingRequestId);
+
+        // Notify worker
+        await supabase.from("notifications").insert({
+          user_id: request.worker_id,
+          type: "booking_confirmed",
+          title: "Counter-Offer Accepted!",
+          message: `Client accepted your counter-offer of ₦${counterAmount.toLocaleString()}. Awaiting payment.`,
+          data: {
+            booking_request_id: input.bookingRequestId,
+            job_id: request.job_id,
+            amount: counterAmount,
+          },
+          read: false,
+        });
+
+        return {
+          success: true,
+          bookingRequestId: input.bookingRequestId,
+          agreedAmount: counterAmount,
+          message: `Counter-offer accepted! Agreed price: ₦${counterAmount.toLocaleString()}`,
+          nextStep: "PROCEED_TO_PAYMENT",
+          paymentUrl: `/client/bookings/${input.bookingRequestId}/pay`,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          message: `Error: ${error?.message || "Unknown error"}`,
+        };
+      }
+    },
+  },
+
   checkWorkerAvailability: {
     description: "Check worker availability for a date",
     schema: checkWorkerAvailabilitySchema,
@@ -476,12 +650,12 @@ const tools = {
       return {
         available: isAvailable,
         conflictingBookings: bookings?.length || 0,
-        message: isAvailable 
-          ? "Worker is available" 
+        message: isAvailable
+          ? "Worker is available"
           : `Worker has ${bookings?.length} booking(s) on this date`,
       };
-    }
-  }
+    },
+  },
 } as const;
 
 /* ---------------------------
@@ -512,21 +686,22 @@ function removeToolCallBlock(text: string) {
 }
 
 /* ---------------------------
-   ENHANCED SYSTEM PROMPT - Force AI to use ONLY tool data
+   SYSTEM PROMPT - Force AI to use ONLY tool data
    --------------------------- */
 
 const SYSTEM_PROMPT = `You are Choriad AI Agent - an autonomous booking assistant for Nigerian service providers.
 
 **CRITICAL AUTHENTICATION RULE:** 
 The authenticated client's ID will be provided as AUTHENTICATED_CLIENT_ID in the conversation.
-You MUST use this EXACT UUID when calling createBookingWithPayment.
+You MUST use this EXACT UUID when calling createBookingRequest.
 NEVER make up client IDs like "client123" or generate fake UUIDs.
 
 YOUR COMPLETE WORKFLOW:
 
 1️⃣ **DISCOVERY PHASE**
-   - Extract: service type, location, date/time, budget
+   - Extract: service type, location, date/time, budget, urgency
    - Be flexible with skill names (grocery = shopping = personal shopper)
+   - Identify urgency: "today"/"urgent" → today, "this week"/"soon" → this_week, otherwise → flexible
 
 2️⃣ **SEARCH & MATCH** (Use searchWorkers tool)
    - Call: <<TOOL_CALL>>{"tool":"searchWorkers","input":{"skills":["service name"],"location":"area","maxBudget":amount}}<<END_TOOL_CALL>>
@@ -534,20 +709,48 @@ YOUR COMPLETE WORKFLOW:
    - Use the EXACT worker ID from tool output (UUID format)
    - NEVER invent or modify worker data
 
-3️⃣ **PRICE NEGOTIATION** (Use negotiatePrice tool)
-   - If hourlyRate = 0: Worker is flexible, use client's budget
-   - If hourlyRate > 0: Negotiate if there's a gap
-   - Call: <<TOOL_CALL>>{"tool":"negotiatePrice","input":{"workerId":"EXACT_UUID_FROM_SEARCH","workerRate":0,"clientBudget":25000}}<<END_TOOL_CALL>>
+3️⃣ **SMART PRICE ANALYSIS** (Use negotiatePrice tool)
+   - If hourlyRate = 0: Worker is flexible, client's budget is reasonable
+   - If hourlyRate > 0: Analyze intelligently
+   - Call with context: <<TOOL_CALL>>{"tool":"negotiatePrice","input":{"workerId":"UUID","workerRate":30000,"clientBudget":25000,"jobComplexity":"simple","workerExperience":5,"urgency":"today"}}<<END_TOOL_CALL>>
+   - **CRITICAL RULES**:
+     • If gap >30% and job is simple → WARN client, suggest alternatives
+     • If gap 15-30% → Propose smart compromise (NOT always midpoint)
+     • Always ASK client approval before proceeding
+     • Example: "Worker's rate is ₦40k but budget is ₦25k (60% higher) for grocery shopping. This seems inflated. Shall I find alternatives?"
+   - NEVER create booking without explicit client approval
 
-4️⃣ **BOOKING CREATION** (ONLY after client approves)
+4️⃣ **SEND BOOKING REQUEST** (ONLY after client approves)
    - Use EXACT worker ID from search results
-   - Use AUTHENTICATED_CLIENT_ID from conversation context (NOT a made-up ID)
-   - Call: <<TOOL_CALL>>{"tool":"createBookingWithPayment","input":{"workerId":"EXACT_UUID_FROM_SEARCH","clientId":"USE_AUTHENTICATED_CLIENT_ID_FROM_CONTEXT","jobTitle":"...","jobDescription":"...","category":"market_runs","location":"ajah, lagos","scheduledDate":"2026-01-11","agreedAmount":25000}}<<END_TOOL_CALL>>
-   - **CRITICAL**: The clientId MUST be the AUTHENTICATED_CLIENT_ID provided in the conversation, not a fake ID
+   - Use AUTHENTICATED_CLIENT_ID from conversation context
+   - Include urgency parameter: <<TOOL_CALL>>{"tool":"createBookingRequest","input":{"workerId":"UUID","clientId":"AUTHENTICATED_CLIENT_ID","jobTitle":"...","jobDescription":"...","category":"errands_delivery","location":"ajah, lagos","scheduledDate":"2026-01-11","proposedAmount":25000,"workerRate":0,"urgency":"today","negotiationNote":"optional"}}<<END_TOOL_CALL>>
+   - Worker gets notification and must respond
+   - **CRITICAL**: The clientId MUST be the AUTHENTICATED_CLIENT_ID 
 
-5️⃣ **PAYMENT**
+ 5️⃣ **SET CORRECT EXPIRY EXPECTATIONS**
+    - If urgency="today": Tell client "Worker has 6 hours to respond"
+    - If urgency="this_week": Tell client "Worker has 12 hours to respond"  
+    - If urgency="flexible": Tell client "Worker has 24 hours to respond"
+6️⃣ **WORKER RESPONSE HANDLING**
+   - If worker ACCEPTS → Automatically notify client and provide payment link
+   - If worker COUNTERS → Present counter-offer details and ask client if they want to:
+     • Accept counter-offer: Call acceptCounterOffer tool
+     • Decline: Suggest showing alternative workers
+   - If worker REJECTS → Suggest alternative workers from original search
+   
+   When client wants to accept counter-offer:
+   - Call: <<TOOL_CALL>>{"tool":"acceptCounterOffer","input":{"bookingRequestId":"UUID","clientId":"AUTHENTICATED_CLIENT_ID"}}<<END_TOOL_CALL>>
+   - Then direct to payment page
+
+7️⃣ **PAYMENT** (Only after worker accepts)
    - Direct to: /client/bookings/{bookingId}/pay
    - Explain escrow process
+
+**NEGOTIATION INTELLIGENCE:**
+   - Simple job + 60% markup = Gaming detected → Suggest alternatives
+   - Complex job + experienced worker + 20% gap = Reasonable compromise
+   - Always consider: job complexity, urgency, worker experience
+   - Get client approval for ANY negotiated price
 
 **TOOL CALL FORMAT:**
 <<TOOL_CALL>>{"tool":"toolName","input":{...}}<<END_TOOL_CALL>>
@@ -569,7 +772,13 @@ export async function POST(req: Request) {
       parsed = {};
     }
 
-    const incomingMessages = parsed.messages || (parsed.message ? (Array.isArray(parsed.message) ? parsed.message : [parsed.message]) : []);
+    const incomingMessages =
+      parsed.messages ||
+      (parsed.message
+        ? Array.isArray(parsed.message)
+          ? parsed.message
+          : [parsed.message]
+        : []);
 
     if (!incomingMessages || incomingMessages.length === 0) {
       return new Response(JSON.stringify({ error: "No messages provided" }), {
@@ -580,40 +789,51 @@ export async function POST(req: Request) {
 
     // CRITICAL: Extract authenticated user ID from request
     const userId = parsed.userId;
-    
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: "User ID required. Please log in." }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "User ID required. Please log in." }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     }
 
     const messages = incomingMessages.map((msg: any) => ({
       id: msg.id || `msg-${Date.now()}-${Math.random()}`,
-      role: msg.role || 'user',
+      role: msg.role || "user",
       parts: msg.parts || [{ type: "text", text: msg.content || "" }],
-      content: msg.content || (msg.parts && msg.parts.find((p: any) => p.type === 'text')?.text) || "",
+      content:
+        msg.content ||
+        (msg.parts && msg.parts.find((p: any) => p.type === "text")?.text) ||
+        "",
       userId: userId,
     }));
 
     const conversationChunks: string[] = [`SYSTEM: ${SYSTEM_PROMPT}`];
-    
+
     // CRITICAL: Include authenticated client ID in context
     conversationChunks.push(`AUTHENTICATED_CLIENT_ID: ${userId}`);
-    conversationChunks.push(`IMPORTANT: When calling createBookingWithPayment, use clientId="${userId}" (this is the authenticated user's UUID).`);
-    
+    conversationChunks.push(
+      `IMPORTANT: When calling createBookingRequest, use clientId="${userId}" (this is the authenticated user's UUID).`
+    );
+
     const recentMessages = messages.slice(-6);
-    
+
     for (const msg of recentMessages) {
       let text = "";
-      
+
       if (msg.parts && Array.isArray(msg.parts)) {
         text = msg.parts
           .map((part: any) => {
             if (part.type === "text" && part.text) return part.text;
             if (part.type?.startsWith("tool-")) {
               // Include full tool output in context
-              return `[Tool ${part.type.replace("tool-", "")} output: ${JSON.stringify(part.output)}]`;
+              return `[Tool ${part.type.replace(
+                "tool-",
+                ""
+              )} output: ${JSON.stringify(part.output)}]`;
             }
             return "";
           })
@@ -622,7 +842,7 @@ export async function POST(req: Request) {
       } else if (msg.content) {
         text = msg.content;
       }
-      
+
       if (text.trim()) {
         if (text.length > 3000) {
           text = text.substring(0, 3000) + "... [truncated]";
@@ -640,17 +860,20 @@ export async function POST(req: Request) {
       step++;
 
       const promptText = conversationChunks.join("\n\n");
-      
+
       const response = await genai.models.generateContent({
         model: GEMINI_MODEL,
         contents: [{ parts: [{ text: promptText }] }],
         config: {
           maxOutputTokens: 2048,
-          temperature: 0.3, 
+          temperature: 0.3,
         },
       });
 
-      const genText = response?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ?? "";
+      const genText =
+        response?.candidates?.[0]?.content?.parts
+          ?.map((p: any) => p.text)
+          .join("") ?? "";
 
       const toolCall = extractToolCall(genText);
 
@@ -663,16 +886,21 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Inject userId for createBookingWithPayment if not provided
-        if (toolName === 'createBookingWithPayment') {
+        // Inject userId for createBookingRequest if not provided
+        if (toolName === "createBookingRequest") {
           if (!toolCall.input.clientId) {
             toolCall.input.clientId = userId;
           }
           // Validate it's a UUID
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const uuidRegex =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if (!uuidRegex.test(toolCall.input.clientId)) {
-            console.error(`Invalid client ID format: ${toolCall.input.clientId}`);
-            conversationChunks.push(`ERROR: Invalid client ID format. Using authenticated user ID: ${userId}`);
+            console.error(
+              `Invalid client ID format: ${toolCall.input.clientId}`
+            );
+            conversationChunks.push(
+              `ERROR: Invalid client ID format. Using authenticated user ID: ${userId}`
+            );
             toolCall.input.clientId = userId;
           }
         }
@@ -689,12 +917,16 @@ export async function POST(req: Request) {
         }
 
         lastToolOutputs.push({ tool: toolName, output: toolResult });
-        
+
         // Add full tool output to conversation
-        conversationChunks.push(`TOOL_OUTPUT (${toolName}): ${JSON.stringify(toolResult)}`);
-        
+        conversationChunks.push(
+          `TOOL_OUTPUT (${toolName}): ${JSON.stringify(toolResult)}`
+        );
+
         // Force AI to reference tool data
-        conversationChunks.push(`SYSTEM REMINDER: You MUST use the EXACT data from the tool output above. DO NOT invent different worker IDs, names, scores, or job counts.`);
+        conversationChunks.push(
+          `SYSTEM REMINDER: You MUST use the EXACT data from the tool output above. DO NOT invent different worker IDs, names, scores, or job counts.`
+        );
         continue;
       } else {
         finalAssistantText = removeToolCallBlock(genText);
@@ -737,10 +969,11 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("Agent error:", err);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: err?.message ?? "Internal error",
-        details: process.env.NODE_ENV === 'development' ? err?.stack : undefined
-      }), 
+        details:
+          process.env.NODE_ENV === "development" ? err?.stack : undefined,
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },

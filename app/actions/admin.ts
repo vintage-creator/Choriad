@@ -74,11 +74,6 @@ export async function processWorkerPayout(params: ProcessPayoutParams) {
       beneficiary_name: params.accountName,
     };
 
-    console.log("Processing Flutterwave transfer:", {
-      reference,
-      amount: params.amount,
-      bank: params.bankName,
-    });
 
     // Call Flutterwave Transfer API
     const response = await fetch("https://api.flutterwave.com/v3/transfers", {
@@ -91,12 +86,6 @@ export async function processWorkerPayout(params: ProcessPayoutParams) {
     });
 
     const result = await response.json();
-
-    console.log("Flutterwave response:", {
-      status: response.status,
-      success: result.status === "success",
-      message: result.message,
-    });
 
     // Check if transfer was successful
     if (!response.ok || result.status !== "success") {

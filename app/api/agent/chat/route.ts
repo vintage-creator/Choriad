@@ -28,7 +28,6 @@ function normalizeLocation(loc: string): string {
  * Helper: normalize and extract skill keywords
  */
 function normalizeSkills(skills: string | string[]): string[] {
-  // Handle case where Gemini passes a string instead of array
   let skillsArray: string[];
 
   if (typeof skills === "string") {
@@ -76,7 +75,7 @@ const searchWorkersSchema = z.object({
   service: z.string().optional(),
   location: z.string().describe("Job location"),
   maxBudget: z.number().optional().describe("Maximum budget in Naira"),
-  budget_max: z.number().optional(), // Alternative parameter name
+  budget_max: z.number().optional(),
   urgency: z.enum(["today", "this_week", "flexible"]).optional(),
 });
 
@@ -104,6 +103,11 @@ const createBookingRequestSchema = z.object({
   urgency: z.enum(["today", "this_week", "flexible"]).optional(),
 });
 
+const checkBookingRequestStatusSchema = z.object({
+  bookingRequestId: z.string(),
+  clientId: z.string(),
+});
+
 const checkWorkerAvailabilitySchema = z.object({
   workerId: z.string(),
   date: z.string(),
@@ -112,6 +116,12 @@ const checkWorkerAvailabilitySchema = z.object({
 const acceptCounterOfferSchema = z.object({
   bookingRequestId: z.string(),
   clientId: z.string(),
+});
+
+const initiatePaymentSchema = z.object({
+  bookingId: z.string(),
+  clientId: z.string(),
+  amount: z.number(),
 });
 
 const tools = {
@@ -567,7 +577,7 @@ const tools = {
       const supabase = await createClient();
 
       try {
-        // Get booking request details
+        // 1. Get booking request details
         const { data: request, error: fetchError } = await supabase
           .from("booking_requests")
           .select("*, jobs(*)")
@@ -591,7 +601,38 @@ const tools = {
 
         const counterAmount = request.counter_offer_ngn;
 
-        // Update booking request status
+        // 2. Calculate amounts
+        const commission = Math.round(counterAmount * 0.15);
+        const workerAmount = counterAmount - commission;
+
+        // 3. Create booking immediately
+        const { data: booking, error: bookingError } = await supabase
+          .from("bookings")
+          .insert({
+            job_id: request.job_id,
+            client_id: input.clientId,
+            worker_id: request.worker_id,
+            scheduled_date: request.scheduled_date,
+            amount_ngn: counterAmount,
+            commission_ngn: commission,
+            worker_amount_ngn: workerAmount,
+            status: "pending_payment",
+            payment_status: "pending",
+            booking_request_id: input.bookingRequestId,
+            negotiation_rounds: 1,
+          })
+          .select()
+          .single();
+
+        if (bookingError || !booking) {
+          console.error("Booking creation error:", bookingError);
+          return {
+            success: false,
+            message: "Failed to create booking",
+          };
+        }
+
+        // 4. Update booking request status
         await supabase
           .from("booking_requests")
           .update({
@@ -601,13 +642,24 @@ const tools = {
           })
           .eq("id", input.bookingRequestId);
 
-        // Notify worker
+        // 5. Update job
+        await supabase
+          .from("jobs")
+          .update({
+            status: "assigned",
+            assigned_worker_id: request.worker_id,
+            final_amount_ngn: counterAmount,
+          })
+          .eq("id", request.job_id);
+
+        // 6. Notify worker with booking ID
         await supabase.from("notifications").insert({
           user_id: request.worker_id,
           type: "booking_confirmed",
           title: "Counter-Offer Accepted!",
           message: `Client accepted your counter-offer of ₦${counterAmount.toLocaleString()}. Awaiting payment.`,
           data: {
+            booking_id: booking.id,
             booking_request_id: input.bookingRequestId,
             job_id: request.job_id,
             amount: counterAmount,
@@ -617,18 +669,128 @@ const tools = {
 
         return {
           success: true,
+          bookingId: booking.id,
           bookingRequestId: input.bookingRequestId,
           agreedAmount: counterAmount,
           message: `Counter-offer accepted! Agreed price: ₦${counterAmount.toLocaleString()}`,
           nextStep: "PROCEED_TO_PAYMENT",
-          paymentUrl: `/client/bookings/${input.bookingRequestId}/pay`,
+          paymentUrl: `/client/bookings/${booking.id}/pay`,
+          autoRedirect: true,
+          redirectMessage: "Redirecting to payment...",
         };
       } catch (error: any) {
+        console.error("Accept counter-offer error:", error);
         return {
           success: false,
           message: `Error: ${error?.message || "Unknown error"}`,
         };
       }
+    },
+  },
+
+  checkBookingRequestStatus: {
+    description:
+      "Check the current status of a booking request to see if worker has responded (accepted/countered/rejected)",
+    schema: checkBookingRequestStatusSchema,
+    execute: async (input: any) => {
+      const supabase = await createClient();
+
+      try {
+        const { data: request, error } = await supabase
+          .from("booking_requests")
+          .select("*, jobs(title)")
+          .eq("id", input.bookingRequestId)
+          .eq("client_id", input.clientId)
+          .single();
+
+        if (error || !request) {
+          return {
+            success: false,
+            message: "Booking request not found",
+          };
+        }
+
+        const status = request.status;
+        const result: any = {
+          success: true,
+          bookingRequestId: input.bookingRequestId,
+          status: status,
+          jobTitle: request.jobs?.title || "Job",
+          proposedAmount: request.proposed_amount_ngn,
+          workerRate: request.worker_rate_ngn,
+        };
+
+        if (status === "pending") {
+          result.message =
+            "Worker has not yet responded to your booking request.";
+          result.expiresAt = request.expires_at;
+        } else if (status === "accepted") {
+          // Worker accepted - check if booking was created
+          const { data: booking } = await supabase
+            .from("bookings")
+            .select("id, amount_ngn")
+            .eq("booking_request_id", input.bookingRequestId)
+            .single();
+
+          result.message = "Worker accepted your booking request!";
+          result.bookingId = booking?.id;
+          result.finalAmount =
+            booking?.amount_ngn || request.proposed_amount_ngn;
+          result.paymentUrl = booking?.id
+            ? `/client/bookings/${booking.id}/pay`
+            : null;
+          result.nextStep = "PROCEED_TO_PAYMENT";
+        } else if (status === "countered") {
+          result.message = "Worker sent a counter-offer.";
+          result.counterOfferAmount = request.counter_offer_ngn;
+          result.counterNote = request.counter_note;
+          result.originalOffer = request.proposed_amount_ngn;
+          result.nextStep = "REVIEW_COUNTER_OFFER";
+        } else if (status === "rejected") {
+          result.message = "Worker declined your booking request.";
+          result.nextStep = "FIND_ALTERNATIVES";
+        } else if (status === "client_accepted") {
+          result.message =
+            "You accepted the worker's counter-offer. Awaiting payment.";
+          // Get booking details
+          const { data: booking } = await supabase
+            .from("bookings")
+            .select("id, amount_ngn")
+            .eq("booking_request_id", input.bookingRequestId)
+            .single();
+
+          result.bookingId = booking?.id;
+          result.finalAmount = booking?.amount_ngn || request.counter_offer_ngn;
+          result.paymentUrl = booking?.id
+            ? `/client/bookings/${booking.id}/pay`
+            : null;
+          result.nextStep = "PROCEED_TO_PAYMENT";
+        }
+
+        return result;
+      } catch (error: any) {
+        console.error("Check booking status error:", error);
+        return {
+          success: false,
+          message: `Error: ${error?.message || "Unknown error"}`,
+        };
+      }
+    },
+  },
+
+  initiatePayment: {
+    description: "Initiate payment process for a confirmed booking",
+    schema: initiatePaymentSchema,
+    execute: async (input: any) => {
+      return {
+        success: true,
+        bookingId: input.bookingId,
+        clientId: input.clientId,
+        amount: input.amount,
+        paymentUrl: `/client/bookings/${input.bookingId}/pay`,
+        autoRedirect: true,
+        message: `Ready for payment of ₦${input.amount.toLocaleString()}`,
+      };
     },
   },
 
@@ -727,24 +889,46 @@ YOUR COMPLETE WORKFLOW:
    - Worker gets notification and must respond
    - **CRITICAL**: The clientId MUST be the AUTHENTICATED_CLIENT_ID 
 
- 5️⃣ **SET CORRECT EXPIRY EXPECTATIONS**
+5️⃣ **SET CORRECT EXPIRY EXPECTATIONS**
     - If urgency="today": Tell client "Worker has 6 hours to respond"
     - If urgency="this_week": Tell client "Worker has 12 hours to respond"  
     - If urgency="flexible": Tell client "Worker has 24 hours to respond"
-6️⃣ **WORKER RESPONSE HANDLING**
-   - If worker ACCEPTS → Automatically notify client and provide payment link
-   - If worker COUNTERS → Present counter-offer details and ask client if they want to:
-     • Accept counter-offer: Call acceptCounterOffer tool
-     • Decline: Suggest showing alternative workers
-   - If worker REJECTS → Suggest alternative workers from original search
-   
-   When client wants to accept counter-offer:
-   - Call: <<TOOL_CALL>>{"tool":"acceptCounterOffer","input":{"bookingRequestId":"UUID","clientId":"AUTHENTICATED_CLIENT_ID"}}<<END_TOOL_CALL>>
-   - Then direct to payment page
 
-7️⃣ **PAYMENT** (Only after worker accepts)
+6️⃣ **WORKER RESPONSE HANDLING**
+   
+   **IMPORTANT:** The system monitors booking_requests in real-time. When a worker responds, the client receives an AUTOMATIC update in the chat (they don't need to ask).
+   
+   **When worker ACCEPTS:**
+   - Client sees: "🎉 Great news! The worker just accepted your booking request!"
+   - System automatically creates a booking and provides payment link
+   - Your job: If client asks for details, explain the escrow process
+   
+   **When worker COUNTERS:**
+   - Client sees: "💬 The worker sent a counter-offer: ₦X"
+   - Your job: Guide them to accept or decline
+   - If client wants to accept, call: <<TOOL_CALL>>{"tool":"acceptCounterOffer","input":{"bookingRequestId":"UUID","clientId":"AUTHENTICATED_CLIENT_ID"}}<<END_TOOL_CALL>>
+   - If client declines, offer to search for alternative workers
+   
+   **When worker REJECTS:**
+   - Client sees: "❌ Unfortunately, the worker declined your booking request"
+   - Your job: Reassure them and offer to find alternatives
+   - Use the workers from the original searchWorkers results if available
+   
+   **CRITICAL**: When client asks "any update?" or "has the worker responded?", ALWAYS call checkBookingRequestStatus first before responding!
+
+7️⃣ **CHECK STATUS TOOL**
+   - When client asks for updates, use: <<TOOL_CALL>>{"tool":"checkBookingRequestStatus","input":{"bookingRequestId":"UUID","clientId":"AUTHENTICATED_CLIENT_ID"}}<<END_TOOL_CALL>>
+   - This checks the latest status from the database
+   - Present the results exactly as returned by the tool
+
+8️⃣ **PAYMENT** (Only after worker accepts)
    - Direct to: /client/bookings/{bookingId}/pay
    - Explain escrow process
+
+  **CRITICAL PAYMENT REDIRECT:**
+  When a client accepts a counter-offer via acceptCounterOffer tool, the system automatically includes a payment redirect.
+  The client will see a countdown timer and be automatically redirected to the payment page.
+  You should still explain the escrow process and next steps.
 
 **NEGOTIATION INTELLIGENCE:**
    - Simple job + 60% markup = Gaming detected → Suggest alternatives
@@ -938,6 +1122,34 @@ export async function POST(req: Request) {
 
     if (finalAssistantText?.trim()) {
       parts.push({ type: "text", text: finalAssistantText });
+    }
+
+    // Check if any tool output requires payment redirect
+    for (const t of lastToolOutputs) {
+      if (
+        t.tool === "acceptCounterOffer" &&
+        t.output.success &&
+        t.output.paymentUrl
+      ) {
+        parts.push({
+          type: "action-paymentRedirect",
+          bookingId: t.output.bookingId,
+          paymentUrl: t.output.paymentUrl,
+          amount: t.output.agreedAmount,
+          countdown: 5,
+        });
+      }
+      if (t.tool === "checkBookingRequestStatus" && t.output.success) {
+        if (t.output.status === "accepted" && t.output.paymentUrl) {
+          parts.push({
+            type: "action-paymentRedirect",
+            bookingId: t.output.bookingId,
+            paymentUrl: t.output.paymentUrl,
+            amount: t.output.finalAmount || t.output.proposedAmount,
+            countdown: 5,
+          });
+        }
+      }
     }
 
     for (const t of lastToolOutputs) {

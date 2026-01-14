@@ -1,3 +1,4 @@
+// app/client/ai-agent/page.tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -21,6 +22,7 @@ import {
   Calendar,
   Info,
   AlertCircle,
+  CreditCard, 
 } from "lucide-react";
 import toast from "react-hot-toast"
 import { createBrowserClient } from "@/lib/supabase/client";
@@ -35,6 +37,9 @@ type MessagePart = {
   state?: string;
   input?: any;
   output?: any;
+  countdown?: number;
+  paymentUrl?: string;
+  amount?: number;
 };
 
 type Message = {
@@ -43,11 +48,92 @@ type Message = {
   parts: MessagePart[];
 };
 
+// PaymentRedirectAction component with countdown timer
+const PaymentRedirectAction = ({ 
+  part, 
+  partIndex 
+}: { 
+  part: MessagePart; 
+  partIndex: number 
+}) => {
+  const [countdown, setCountdown] = useState(part.countdown || 5);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      // Redirect when countdown reaches 0
+      window.location.href = part.paymentUrl || "/client/dashboard";
+    }
+  }, [countdown, part.paymentUrl]);
+
+  const handleSkipWait = () => {
+    setCountdown(0); // Will trigger the redirect in useEffect
+  };
+
+  const handlePayNow = () => {
+    window.location.href = part.paymentUrl || "/client/dashboard";
+  };
+
+  return (
+    <div key={partIndex} className="space-y-3 mt-2">
+      <Card className="border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="font-semibold text-green-800">
+                🎉 Booking Confirmed!
+              </span>
+            </div>
+            <Badge variant="outline" className="animate-pulse bg-green-100">
+              Auto-redirect in {countdown}s
+            </Badge>
+          </div>
+          
+          <div className="text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Amount:</span>
+              <span className="font-bold text-green-700">
+                ₦{part.amount?.toLocaleString() || "0"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground pt-2">
+              Your payment is protected by escrow. Worker only gets paid after you approve completion.
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePayNow}
+              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+              size="sm"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Pay Now
+            </Button>
+            <Button
+              onClick={handleSkipWait}
+              variant="outline"
+              size="sm"
+              className="border-green-300 text-green-700 hover:bg-green-50"
+            >
+              Skip Wait
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 export default function AIAgentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const processedRequests = useRef<Set<string>>(new Set());
 
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -138,14 +224,15 @@ export default function AIAgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+
   useEffect(() => {
     if (!userId) return;
   
     const supabase = createBrowserClient();
   
-    // ✅ Subscribe to booking_request updates for this client
-    const channel = supabase
-      .channel('ai-agent-updates')
+    // ✅ Subscribe to booking_request updates for counters & rejections
+    const bookingRequestChannel = supabase
+      .channel('booking-request-updates')
       .on(
         'postgres_changes',
         {
@@ -158,15 +245,87 @@ export default function AIAgentPage() {
           const updatedRequest = payload.new;
           console.log("Booking request updated:", updatedRequest);
   
-          // Check if worker accepted/countered/rejected
-          if (updatedRequest.status === 'accepted') {
-            // ✅ AUTO-CONTINUE: Inject message from AI agent
+          // Skip if already processed
+          if (processedRequests.current.has(updatedRequest.id)) {
+            console.log("Skipping already processed request:", updatedRequest.id);
+            return;
+          }
+  
+          // ✅ WORKER COUNTERED
+          if (updatedRequest.status === 'countered') {
             const autoMessage = {
-              id: `auto-${Date.now()}`,
+              id: `auto-counter-${Date.now()}`,
               role: 'assistant' as const,
               parts: [{
                 type: 'text',
-                text: `🎉 **Great news!** The worker just accepted your booking request!\n\nTo complete the booking, you need to make the payment:\n\n✅ Amount: ₦${updatedRequest.proposed_amount_ngn?.toLocaleString()}\n💳 [Click here to pay](/client/booking-requests/${updatedRequest.id}/pay)\n\nYour payment is protected by escrow - the worker only gets paid after you approve the completed work.`
+                text: `💬 **The worker sent a counter-offer:**\n\n📊 **Your offer:** ₦${updatedRequest.proposed_amount_ngn?.toLocaleString()}\n📊 **Worker's counter-offer:** ₦${updatedRequest.counter_offer_ngn?.toLocaleString()}\n${updatedRequest.counter_note ? `\n💭 **Worker's note:** "${updatedRequest.counter_note}"\n` : ''}\n**Would you like to:**\n\n1️⃣ Accept the counter-offer (₦${updatedRequest.counter_offer_ngn?.toLocaleString()})\n2️⃣ Decline and see other workers\n\nJust type your preference and I'll help you proceed!`
+              }]
+            };
+  
+            setMessages(prev => [...prev, autoMessage]);
+            
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+  
+            toast("Worker sent a counter-offer", {
+              icon: "💬",      
+              duration: 5000,
+            });
+  
+            processedRequests.current.add(updatedRequest.id);
+          }
+  
+          // ✅ WORKER REJECTED
+          if (updatedRequest.status === 'rejected') {
+            const autoMessage = {
+              id: `auto-rejected-${Date.now()}`,
+              role: 'assistant' as const,
+              parts: [{
+                type: 'text',
+                text: `❌ Unfortunately, the worker declined your booking request.\n\nNo worries! I can help you find alternative workers in the same area who are available.\n\n🔍 Would you like me to show you other great options?`
+              }]
+            };
+  
+            setMessages(prev => [...prev, autoMessage]);
+            
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+  
+            toast.error("Worker declined request", {
+              duration: 5000,
+            });
+  
+            processedRequests.current.add(updatedRequest.id);
+          }
+  
+          // ✅ WORKER ACCEPTED (via booking_requests update - fallback)
+          if (updatedRequest.status === 'accepted') {
+            processedRequests.current.add(updatedRequest.id);
+            
+            // Fetch the booking that was created when worker accepted
+            const { data: booking } = await supabase
+              .from('bookings')
+              .select('id, amount_ngn')
+              .eq('booking_request_id', updatedRequest.id)
+              .single();
+  
+            const bookingId = booking?.id;
+            const amount = booking?.amount_ngn || updatedRequest.proposed_amount_ngn;
+  
+            if (!bookingId) {
+              console.error("Booking not found for request:", updatedRequest.id);
+              return;
+            }
+  
+            // ✅ AUTO-CONTINUE: Inject message from AI agent
+            const autoMessage = {
+              id: `auto-accepted-${Date.now()}`,
+              role: 'assistant' as const,
+              parts: [{
+                type: 'text',
+                text: `🎉 **Great news!** The worker just accepted your booking request!\n\n✅ **Amount:** ₦${amount?.toLocaleString()}\n💳 **Next Step:** [Click here to pay](/client/bookings/${bookingId}/pay)\n\nYour payment is protected by escrow - the worker only gets paid after you approve the completed work.`
               }]
             };
   
@@ -183,39 +342,75 @@ export default function AIAgentPage() {
               icon: "🎉"
             });
           }
+        }
+      )
+      .subscribe();
   
-          if (updatedRequest.status === 'countered') {
-            // ✅ AUTO-CONTINUE: Worker sent counter-offer
+    // ✅ Subscribe to NEW BOOKINGS for acceptances (primary source)
+    const bookingChannel = supabase
+      .channel('booking-acceptances')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bookings',
+          filter: `client_id=eq.${userId}`
+        },
+        async (payload) => {
+          const newBooking = payload.new;
+          console.log("New booking created:", newBooking);
+  
+          // Only process bookings with booking_request_id (not direct bookings)
+          if (newBooking.booking_request_id) {
+            // Check if we already processed this via booking_requests update
+            if (processedRequests.current.has(newBooking.booking_request_id)) {
+              console.log("Already processed acceptance via booking_requests:", newBooking.booking_request_id);
+              return;
+            }
+  
+            // Mark as processed
+            processedRequests.current.add(newBooking.booking_request_id);
+  
+            // Fetch booking request details for context
+            const { data: request } = await supabase
+              .from('booking_requests')
+              .select('*')
+              .eq('id', newBooking.booking_request_id)
+              .single();
+  
+            // If booking request exists and isn't already accepted, update it
+            if (request && request.status !== 'accepted') {
+              await supabase
+                .from('booking_requests')
+                .update({ 
+                  status: 'accepted',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', newBooking.booking_request_id);
+            }
+  
+            // ✅ AUTO-CONTINUE: Inject message from AI agent
             const autoMessage = {
-              id: `auto-${Date.now()}`,
+              id: `auto-accepted-${Date.now()}`,
               role: 'assistant' as const,
               parts: [{
                 type: 'text',
-                text: `💬 **The worker sent a counter-offer:**\n\n📊 Your offer: ₦${updatedRequest.proposed_amount_ngn?.toLocaleString()}\n📊 Worker's counter-offer: ₦${updatedRequest.counter_offer_ngn?.toLocaleString()}\n${updatedRequest.counter_note ? `\n💭 Worker's note: "${updatedRequest.counter_note}"\n` : ''}\nWould you like to:\n1️⃣ Accept the counter-offer (₦${updatedRequest.counter_offer_ngn?.toLocaleString()})\n2️⃣ Decline and see other workers\n\nWhat would you prefer?`
+                text: `🎉 **Great news!** The worker just accepted your booking request!\n\n✅ **Amount:** ₦${newBooking.amount_ngn?.toLocaleString()}\n💳 **Next Step:** [Click here to pay](/client/bookings/${newBooking.id}/pay)\n\nYour payment is protected by escrow - the worker only gets paid after you approve the completed work.`
               }]
             };
   
             setMessages(prev => [...prev, autoMessage]);
-            toast("Worker sent a counter-offer", {
-              icon: <Info />,      
-              duration: 5000,
-            });
-          }
+            
+            // Auto-scroll to new message
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
   
-          if (updatedRequest.status === 'rejected') {
-            // ✅ AUTO-CONTINUE: Worker rejected
-            const autoMessage = {
-              id: `auto-${Date.now()}`,
-              role: 'assistant' as const,
-              parts: [{
-                type: 'text',
-                text: `❌ Unfortunately, the worker declined your booking request.\n\nNo worries! I found 2 other great workers in the same area who are available:\n\n🔍 Would you like me to show you alternative workers?`
-              }]
-            };
-  
-            setMessages(prev => [...prev, autoMessage]);
-            toast.error("Worker declined request", {
-              duration: 5000,
+            // Show toast notification
+            toast.success("Worker accepted your request!", {
+              duration: 6000,
+              icon: "🎉"
             });
           }
         }
@@ -223,10 +418,12 @@ export default function AIAgentPage() {
       .subscribe();
   
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(bookingRequestChannel);
+      supabase.removeChannel(bookingChannel);
     };
   }, [userId, setMessages]);
 
+  
   // Simple intent-based loading message selector
   function getLoadingMessageForInput(text: string, msgs: Message[]) {
     const s = (text || "").toLowerCase();
@@ -482,6 +679,10 @@ export default function AIAgentPage() {
                     <CardContent className="p-3 sm:p-4">
                       {message.parts.map((part, partIndex) => {
                         const partType = part?.type ?? "text";
+
+                        if (partType === "action-paymentRedirect") {
+                          return <PaymentRedirectAction key={partIndex} part={part} partIndex={partIndex} />;
+                        }
 
                         if (partType === "text") {
                           return (
@@ -817,6 +1018,125 @@ export default function AIAgentPage() {
                           }
                         }
 
+                        // Handle acceptCounterOffer tool with auto-redirect
+                        if (partType === "tool-acceptCounterOffer") {
+                          if (part.state === "output-available") {
+                            const output = part.output || {};
+                            return (
+                              <div key={partIndex} className="space-y-3 mt-2">
+                                <div
+                                  className={`flex items-center gap-2 font-medium text-sm ${
+                                    output.success
+                                      ? "text-green-600"
+                                      : "text-red-600"
+                                  }`}
+                                >
+                                  {output.success ? (
+                                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                  )}
+                                  <span>{output.message}</span>
+                                </div>
+
+                                {output.success && output.paymentUrl && (
+                                  <Card className="border border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+                                    <CardContent className="p-4 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold text-green-800">
+                                          🎉 Counter-Offer Accepted!
+                                        </span>
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-white"
+                                        >
+                                          #{output.bookingId?.slice(0, 8)}
+                                        </Badge>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 gap-3 text-xs">
+                                        <div>
+                                          <div className="text-muted-foreground">
+                                            Agreed Amount
+                                          </div>
+                                          <div className="font-semibold text-slate-900">
+                                            ₦
+                                            {output.agreedAmount?.toLocaleString()}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {output.paymentUrl && (
+                                        <div className="space-y-2">
+                                          <p className="text-xs text-muted-foreground">
+                                            Redirecting to payment in 3 seconds...
+                                          </p>
+                                          <Button
+                                            onClick={() => window.location.href = output.paymentUrl}
+                                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                                            size="sm"
+                                          >
+                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            Pay Now
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                )}
+                              </div>
+                            );
+                          }
+                        }
+
+                        // Handle createBookingRequest tool
+                        if (partType === "tool-createBookingRequest") {
+                          if (part.state === "output-available") {
+                            const output = part.output || {};
+                            return (
+                              <div key={partIndex} className="space-y-3 mt-2">
+                                <div
+                                  className={`flex items-center gap-2 font-medium text-sm ${
+                                    output.success
+                                      ? "text-green-600"
+                                      : "text-amber-600"
+                                  }`}
+                                >
+                                  {output.success ? (
+                                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                  )}
+                                  <span>{output.message}</span>
+                                </div>
+
+                                {output.success && (
+                                  <Card className="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50/50">
+                                    <CardContent className="p-4 space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold text-amber-800">
+                                          ⏳ Request Sent
+                                        </span>
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-white"
+                                        >
+                                          {output.expiresInHours}h
+                                        </Badge>
+                                      </div>
+                                      <div className="text-xs text-amber-700">
+                                        Worker has {output.expiresInHours} hours to respond.
+                                        You'll get an automatic update here when they do.
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )}
+                              </div>
+                            );
+                          }
+                        }
+
+                        // Fallback for unknown part types
                         return (
                           <div
                             key={partIndex}

@@ -66,30 +66,56 @@ export function BookingRequests({
   const handleAccept = async (requestId: string, proposedAmount: number) => {
     const supabase = createClient();
     setIsLoading(requestId);
-
+  
     try {
-      // 1. Update booking request status to "accepted"
+      // 1. Get full request details first
+      const { data: request, error: fetchError } = await supabase
+        .from("booking_requests")
+        .select("*, jobs(*)")
+        .eq("id", requestId)
+        .single();
+  
+      if (fetchError || !request) throw new Error("Request not found");
+  
+      // 2. Calculate amounts
+      const commission = Math.round(proposedAmount * 0.15);
+      const workerAmount = proposedAmount - commission;
+  
+      // 3. Create booking immediately
+      const { data: booking, error: bookingError } = await supabase
+        .from("bookings")
+        .insert({
+          job_id: request.job_id,
+          client_id: request.client_id,
+          worker_id: workerId,
+          scheduled_date: request.scheduled_date,
+          amount_ngn: proposedAmount,
+          commission_ngn: commission,
+          worker_amount_ngn: workerAmount,
+          status: "pending_payment",
+          payment_status: "pending",
+          booking_request_id: requestId,
+        })
+        .select()
+        .single();
+  
+      if (bookingError || !booking) {
+        console.error("Booking creation error:", bookingError);
+        throw new Error("Failed to create booking");
+      }
+  
+      // 4. Update booking request status to "accepted"
       const { error: updateError } = await supabase
         .from("booking_requests")
         .update({
           status: "accepted",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", requestId)
-        .eq("worker_id", workerId);
-
+        .eq("id", requestId);
+  
       if (updateError) throw updateError;
-
-      // 2. Get full request details
-      const { data: request } = await supabase
-        .from("booking_requests")
-        .select("*, jobs(*)")
-        .eq("id", requestId)
-        .single();
-
-      if (!request) throw new Error("Request not found");
-
-      // 3. Update job status to show it's been accepted
+  
+      // 5. Update job status
       await supabase
         .from("jobs")
         .update({
@@ -98,17 +124,18 @@ export function BookingRequests({
           final_amount_ngn: proposedAmount,
         })
         .eq("id", request.job_id);
-
-      const paymentUrl = `/client/bookings/${requestId}/pay`; 
-
+  
+      // 6. Payment URL now uses booking ID
+      const paymentUrl = `/client/bookings/${booking.id}/pay`;
+  
+      // 7. Notify client with booking ID
       await supabase.from("notifications").insert({
         user_id: request.client_id,
         type: "booking_confirmed",
         title: "Worker Accepted Your Request! 🎉",
-        message: `${
-          request.jobs.title
-        } - Complete payment to secure booking (₦${proposedAmount.toLocaleString()})`,
+        message: `${request.jobs.title} - Complete payment to secure booking (₦${proposedAmount.toLocaleString()})`,
         data: {
+          booking_id: booking.id,
           booking_request_id: requestId,
           job_id: request.job_id,
           payment_url: paymentUrl,
@@ -117,10 +144,10 @@ export function BookingRequests({
         },
         read: false,
       });
-
+  
       // Update UI
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
-
+  
       toast.success("✅ Request accepted! Waiting for client payment.", {
         duration: 5000,
         icon: "🎉",

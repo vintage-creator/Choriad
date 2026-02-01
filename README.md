@@ -110,9 +110,8 @@ Choriad is a comprehensive platform that revolutionizes how busy individuals fin
 - **API**: Next.js Server Actions & Route Handlers
 
 ### AI & Automation
-- **AI SDK**: Vercel AI SDK
-- **LLM Provider**: OpenAI (via Vercel AI Gateway)
-- **Models**: GPT-4 for worker matching and negotiation
+- **AI SDK**: Gemini AI SDK
+- **Models**: Gemini 3 flash-preview for worker matching and negotiation
 - **Embeddings**: Vector search for skill matching
 
 ### Payments

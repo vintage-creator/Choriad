@@ -434,8 +434,8 @@ FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_LIVE-xxx
 FLUTTERWAVE_SECRET_KEY=FLWSECK_LIVE-xxx
 FLUTTERWAVE_SECRET_HASH=xxx
 
-# OpenAI
-OPENAI_API_KEY
+# Gemini
+GEMINI_API_KEY
 
 # App
 NEXT_PUBLIC_APP_URL=https://choriad.com
@@ -583,9 +583,6 @@ Proprietary - All rights reserved © 2025 Choriad
 ## 👥 Team
 
 - Product Lead: Israel Abazie
-- Tech Lead: [Name]
-- AI Engineer: [Name]
-- Full Stack Developer: [Name]
 
 ## 📞 Support
 

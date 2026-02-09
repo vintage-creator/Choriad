@@ -8,7 +8,7 @@ This project is optimized for deployment on Vercel.
 
 1. Vercel account
 2. Supabase project
-3. Stripe account
+3. Flutterwave account
 
 ### Steps
 
@@ -19,7 +19,7 @@ This project is optimized for deployment on Vercel.
 
 2. **Configure Integrations**
    - Add Supabase integration in Vercel
-   - Add Stripe integration in Vercel
+   - Add Flutterwave integration in Vercel
    - Environment variables are automatically configured
 
 3. **Run Database Migrations**
@@ -50,10 +50,6 @@ The following are automatically configured via integrations:
 - `POSTGRES_URL`
 - `NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL`
 
-**Stripe:**
-- `STRIPE_SECRET_KEY`
-- `STRIPE_PUBLISHABLE_KEY`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
 
 **AI (via Vercel AI Gateway):**
 - Automatically configured, no API key needed
@@ -78,13 +74,6 @@ Execute in order:
 5. `005_create_reviews.sql` - Reviews table
 6. `006_create_profile_trigger.sql` - Auto-create profiles
 
-## Monitoring
-
-- Check Vercel Analytics for performance
-- Monitor Supabase for database health
-- Review Stripe dashboard for payments
-- Check AI SDK usage in Vercel dashboard
-
 ## Troubleshooting
 
 ### Authentication Issues
@@ -93,7 +82,7 @@ Execute in order:
 - Ensure middleware is configured
 
 ### Payment Issues
-- Verify Stripe keys
+- Verify Flutterwave keys
 - Check webhook configuration
 - Review Stripe logs
 

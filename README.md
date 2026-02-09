@@ -167,8 +167,8 @@ FLUTTERWAVE_SECRET_KEY=FLWSECK-xxxxxxxxxxxxx
 FLUTTERWAVE_ENCRYPTION_KEY=FLWSECK_TESTxxxxx
 FLUTTERWAVE_SECRET_HASH=your_webhook_secret
 
-# OpenAI (via Vercel AI Gateway)
-OPENAI_API_KEY=sk-xxxxxxxxxxxxx
+# Gemini API
+GEMINI_API_KEY=AIxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000

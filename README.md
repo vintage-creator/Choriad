@@ -578,17 +578,11 @@ Body: FlutterwaveEvent
 
 ## 📄 License
 
-Proprietary - All rights reserved © 2025 Choriad
+Proprietary - All rights reserved © 2026 Choriad
 
 ## 👥 Team
 
 - Product Lead: Israel Abazie
-
-## 📞 Support
-
-- Email: support@choriad.com
-- Slack: #choriad-support
-- Documentation: https://docs.choriad.com
 
 ---
 
